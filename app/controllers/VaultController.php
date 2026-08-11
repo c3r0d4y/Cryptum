@@ -33,7 +33,8 @@ final class VaultController extends Controller
         }
 
         try {
-            $result = $this->vault->store((string) file_get_contents('php://input'));
+            // El modelo lee php://input por bloques; no se carga el cuerpo aquí
+            $result = $this->vault->store();
             $this->json($result);
         } catch (\OverflowException $e) {
             $this->jsonError(503, $e->getMessage());
@@ -78,6 +79,13 @@ final class VaultController extends Controller
 
     public function listUsb(): void
     {
+        // La lista de discos revela hardware del servidor: por defecto solo
+        // se permite desde la propia máquina (ver USB_API_LOCAL_ONLY en config).
+        $remota = !in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true);
+        if (USB_API_LOCAL_ONLY && $remota) {
+            $this->jsonError(403, 'La función de dispositivos USB solo está disponible desde el propio equipo.');
+        }
+
         $this->json($this->vault->listUsb());
     }
 }

@@ -19,13 +19,21 @@
 declare(strict_types=1);
 
 /* ── Cabeceras de seguridad HTTP ────────────────────────────────────────── */
+// Nota: X-XSS-Protection se eliminó — es una cabecera obsoleta que los
+// navegadores modernos ignoran; la protección real la da la CSP de abajo.
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
-header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: no-referrer');
 header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
-header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-src 'none'; img-src 'self' data:;");
+// form-action 'none' y base-uri 'none' cierran vectores de exfiltración
+// por formularios inyectados o etiquetas <base> maliciosas.
+header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; frame-src 'none'; img-src 'self' data:; form-action 'none'; base-uri 'none';");
 header('Cache-Control: no-store, no-cache');
+
+// HSTS solo cuando la conexión ya es HTTPS (enviarla por HTTP no tiene efecto)
+if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
 
 /* ── Carga base ─────────────────────────────────────────────────────────── */
 define('APP_ROOT', dirname(__DIR__));

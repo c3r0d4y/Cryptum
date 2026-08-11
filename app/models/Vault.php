@@ -21,7 +21,7 @@ final class Vault
 {
     // ── Subida ────────────────────────────────────────────────────────────────
 
-    public function store(string $rawBody): array
+    public function store(): array
     {
         $this->cleanup();
 
@@ -30,43 +30,85 @@ final class Vault
             throw new \OverflowException('Capacidad temporal agotada. Intenta en unos minutos.');
         }
 
-        $body = json_decode($rawBody ?: '{}', true);
-        if (!is_array($body) || empty($body['data'])) {
-            throw new \InvalidArgumentException('Cuerpo de solicitud inválido.');
-        }
+        // Hash parcial de IP para auditoría mínima sin almacenar dato personal
+        $origin = substr(hash('sha256', $_SERVER['REMOTE_ADDR'] ?? ''), 0, 8);
 
-        $blob = base64_decode($body['data'], true);
-        if ($blob === false || strlen($blob) < 50) {
-            throw new \InvalidArgumentException('Datos de archivo inválidos o corruptos.');
+        // Cuota por visitante: evita que un solo cliente llene la bóveda
+        // y deje sin servicio a los demás (denegación de servicio trivial).
+        $propios = 0;
+        foreach (glob(VAULT_PATH . '*.meta') ?: [] as $mf) {
+            $m = json_decode((string) file_get_contents($mf), true) ?: [];
+            if (($m['origin'] ?? '') === $origin) {
+                $propios++;
+            }
+        }
+        if ($propios >= MAX_VAULTS_PER_IP) {
+            throw new \OverflowException('Has alcanzado el límite de enlaces activos. Espera a que expiren los anteriores.');
         }
 
         $maxBytes = MAX_FILE_MB * 1024 * 1024;
-        if (strlen($blob) > $maxBytes) {
-            throw new \LengthException('Archivo demasiado grande (máximo ' . MAX_FILE_MB . ' MB).');
-        }
 
-        // Verificar firma binaria del formato Cryptum
-        if (substr($blob, 0, 4) !== 'C3VL') {
-            throw new \UnexpectedValueException('El archivo no tiene formato Cryptum válido.');
+        // El tamaño declarado se valida antes de leer un solo byte del cuerpo
+        $declarado = (int) ($_SERVER['CONTENT_LENGTH'] ?? 0);
+        if ($declarado > $maxBytes) {
+            throw new \LengthException('Archivo demasiado grande (máximo ' . MAX_FILE_MB . ' MB).');
         }
 
         if (!is_dir(VAULT_PATH)) {
             mkdir(VAULT_PATH, 0750, true);
         }
 
-        $token = bin2hex(random_bytes(16));
+        $token   = bin2hex(random_bytes(16));
+        $encFile = VAULT_PATH . $token . '.enc';
 
-        if (file_put_contents(VAULT_PATH . $token . '.enc', $blob) === false) {
+        // El cuerpo llega como binario crudo (application/octet-stream) y se
+        // copia al disco por bloques: un archivo de 100 MB ya no necesita
+        // cargarse completo en memoria ni decodificarse de base64.
+        $in  = fopen('php://input', 'rb');
+        $out = $in !== false ? fopen($encFile, 'wb') : false;
+        if ($in === false || $out === false) {
             throw new \RuntimeException('Error al almacenar el archivo en bóveda.');
         }
-        chmod(VAULT_PATH . $token . '.enc', 0600);
+        chmod($encFile, 0600);
+
+        $escrito = 0;
+        $firma   = '';
+        while (!feof($in)) {
+            $chunk = fread($in, 1048576);
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
+            if (strlen($firma) < 4) {
+                $firma .= substr($chunk, 0, 4 - strlen($firma));
+            }
+            $escrito += strlen($chunk);
+            if ($escrito > $maxBytes) {
+                fclose($in);
+                fclose($out);
+                $this->shred($encFile);
+                throw new \LengthException('Archivo demasiado grande (máximo ' . MAX_FILE_MB . ' MB).');
+            }
+            fwrite($out, $chunk);
+        }
+        fclose($in);
+        fclose($out);
+
+        if ($escrito < 50) {
+            $this->shred($encFile);
+            throw new \InvalidArgumentException('Datos de archivo inválidos o corruptos.');
+        }
+
+        // Verificar firma binaria del formato Cryptum
+        if ($firma !== 'C3VL') {
+            $this->shred($encFile);
+            throw new \UnexpectedValueException('El archivo no tiene formato Cryptum válido.');
+        }
 
         $meta = [
             'created'    => time(),
             'downloaded' => false,
-            'size'       => strlen($blob),
-            // Hash parcial de IP para auditoría mínima sin almacenar dato personal
-            'origin'     => substr(hash('sha256', $_SERVER['REMOTE_ADDR'] ?? ''), 0, 8),
+            'size'       => $escrito,
+            'origin'     => $origin,
         ];
         file_put_contents(VAULT_PATH . $token . '.meta', json_encode($meta));
         chmod(VAULT_PATH . $token . '.meta', 0600);
@@ -81,7 +123,7 @@ final class Vault
             'url'        => $url,
             'expires_at' => time() + EXPIRY_SEC,
             'expiry_sec' => EXPIRY_SEC,
-            'size'       => strlen($blob),
+            'size'       => $escrito,
         ];
     }
 
@@ -93,41 +135,43 @@ final class Vault
 
         $encFile  = VAULT_PATH . $token . '.enc';
         $metaFile = VAULT_PATH . $token . '.meta';
+        $reclamo  = VAULT_PATH . $token . '.serving';
 
-        if (!file_exists($encFile) || !file_exists($metaFile)) {
+        // Reclamo atómico: rename() solo puede ganarlo UNA petición.
+        // Antes se marcaba "downloaded" en el meta, pero dos descargas
+        // simultáneas podían leer el meta a la vez y ambas servir el archivo.
+        if (!@rename($encFile, $reclamo)) {
             throw new \RuntimeException('Enlace inválido, ya utilizado o expirado.', 404);
         }
 
-        $meta = json_decode((string) file_get_contents($metaFile), true);
+        $meta = json_decode((string) @file_get_contents($metaFile), true);
         if (!is_array($meta)) {
-            $this->delete($token);
+            $this->shred($reclamo);
+            @unlink($metaFile);
             throw new \RuntimeException('Metadatos corruptos.', 500);
         }
 
         if ((time() - ($meta['created'] ?? 0)) > EXPIRY_SEC) {
-            $this->delete($token);
+            $this->shred($reclamo);
+            @unlink($metaFile);
             throw new \RuntimeException('El enlace ha expirado (límite: 5 minutos).', 410);
         }
 
-        if (!empty($meta['downloaded'])) {
-            $this->delete($token);
-            throw new \RuntimeException('Este enlace ya fue utilizado. Solo permite una descarga.', 410);
-        }
-
-        // Marcar como descargado ANTES de servir para evitar race conditions
+        // El meta se conserva marcado como descargado para que la pantalla de
+        // estado pueda decir "enlace ya utilizado"; la limpieza lo borra después.
         $meta['downloaded']    = true;
         $meta['downloaded_at'] = time();
         file_put_contents($metaFile, json_encode($meta));
 
         header('Content-Type: application/octet-stream');
-        header('Content-Length: ' . filesize($encFile));
+        header('Content-Length: ' . filesize($reclamo));
         header('Content-Disposition: attachment; filename="vault.c3v"');
         header('Cache-Control: no-store, no-cache, must-revalidate');
         header('Pragma: no-cache');
         header('X-Cryptum-Token: consumed');
 
-        readfile($encFile);
-        $this->delete($token);
+        readfile($reclamo);
+        $this->shred($reclamo);
 
         if (function_exists('fastcgi_finish_request')) {
             fastcgi_finish_request();
@@ -146,7 +190,12 @@ final class Vault
             return ['valid' => false, 'reason' => 'not_found'];
         }
 
-        $meta      = json_decode((string) file_get_contents($metaFile), true);
+        $meta = json_decode((string) file_get_contents($metaFile), true);
+
+        // Cada consulta de estado también limpia vaults vencidos: así la
+        // limpieza no depende únicamente de que alguien suba un archivo.
+        // (El meta propio ya se leyó arriba, por eso el orden importa.)
+        $this->cleanup();
         $elapsed   = time() - ($meta['created'] ?? 0);
         $remaining = EXPIRY_SEC - $elapsed;
 
@@ -241,16 +290,43 @@ final class Vault
 
     // ── Privados ──────────────────────────────────────────────────────────────
 
-    // Elimina vault: sobrescribe con ceros antes de borrar
+    // Elimina vault: sobrescribe el archivo cifrado con ceros antes de borrar
     public function delete(string $token): void
     {
-        $encFile = VAULT_PATH . $token . '.enc';
-        if (file_exists($encFile)) {
-            $size = filesize($encFile);
-            file_put_contents($encFile, str_repeat("\0", min($size ?: 0, 4096)));
-            @unlink($encFile);
-        }
+        $this->shred(VAULT_PATH . $token . '.enc');
+        // También se limpia un posible reclamo huérfano de una descarga interrumpida
+        $this->shred(VAULT_PATH . $token . '.serving');
         @unlink(VAULT_PATH . $token . '.meta');
+    }
+
+    /*
+     * Sobrescribe un archivo con ceros EN SITIO y luego lo borra.
+     * Se abre con 'r+' (no trunca): así los ceros caen sobre los mismos
+     * bloques del disco que ocupaban los datos. La versión anterior usaba
+     * file_put_contents, que primero trunca el archivo — eso libera los
+     * bloques originales sin tocarlos y la sobreescritura no servía de nada.
+     *
+     * Limitación honesta: en discos SSD (wear leveling) y sistemas de
+     * archivos con journaling la sobreescritura no garantiza el borrado
+     * físico. Es una medida de mejor esfuerzo, no una garantía forense.
+     */
+    private function shred(string $path): void
+    {
+        if (is_file($path)) {
+            $size = filesize($path) ?: 0;
+            $fh   = @fopen($path, 'r+');
+            if ($fh !== false) {
+                $bloque = str_repeat("\0", 65536);
+                $resta  = $size;
+                while ($resta > 0) {
+                    fwrite($fh, $resta >= 65536 ? $bloque : str_repeat("\0", $resta));
+                    $resta -= 65536;
+                }
+                fflush($fh);
+                fclose($fh);
+            }
+            @unlink($path);
+        }
     }
 
     // Limpia vaults expirados o ya descargados

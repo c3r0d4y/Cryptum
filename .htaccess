@@ -1,0 +1,6 @@
+Options -Indexes
+RewriteEngine On
+
+# Redirige todo al directorio público
+RewriteRule ^$ public/ [L]
+RewriteRule (.*) public/$1 [L]

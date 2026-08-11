@@ -1,0 +1,24 @@
+# Bóveda temporal: blobs cifrados y metadatos generados en tiempo de ejecución.
+# Nunca deben viajar al repositorio.
+storage/vault/*
+!storage/vault/.htaccess
+!storage/vault/.gitkeep
+
+# Archivos cifrados de prueba
+*.c3v
+.cryptum_meta.bin
+
+# Configuración local del entorno
+.env
+.env.local
+
+# Basura de sistemas operativos y editores
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Registros
+*.log

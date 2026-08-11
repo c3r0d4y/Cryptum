@@ -6,26 +6,30 @@
                 Cifrado de grado operacional
             </div>
             <h1>Crypt<span>um</span></h1>
-            <p class="hero-sub">Cifra cualquier archivo directamente en tu dispositivo con AES-256-GCM. Ningún dato sale de tu navegador.</p>
+            <p class="hero-sub">Cifra y descifra un archivo, una carpeta completa o una unidad USB con AES-256-GCM. Todo ocurre en tu navegador: ningún dato sale de tu equipo.</p>
         </div>
 
         <div class="vault-card">
             <div class="card-body home-actions">
+                <!-- Tres funciones, tres puertas de entrada. Cada una cifra
+                     Y descifra: el modo se elige con pestañas dentro. -->
                 <button class="home-btn" id="btn-go-encrypt">
                     <span class="home-btn-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-                    <span class="home-btn-text"><strong>Cifrar archivo</strong><span>Protege cualquier archivo con contraseña y AES-256-GCM</span></span>
+                    <span class="home-btn-text"><strong>Cifrar / descifrar archivo</strong><span>Un archivo suelto, protegido con contraseña y AES-256-GCM</span></span>
                     <span class="home-btn-arrow"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
                 </button>
-                <button class="home-btn" id="btn-go-decrypt">
-                    <span class="home-btn-icon" style="color:var(--gold);background:var(--gold-bg);border-color:var(--gold-bd)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M17 11V7"/></svg></span>
-                    <span class="home-btn-text"><strong>Descifrar archivo</strong><span>Abre un archivo .c3v con tu contraseña</span></span>
+                <button class="home-btn" id="btn-go-folder">
+                    <span class="home-btn-icon" style="color:var(--gold);background:var(--gold-bg);border-color:var(--gold-bd)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/></svg>
+                    </span>
+                    <span class="home-btn-text"><strong>Cifrar / descifrar carpeta</strong><span>Todos los archivos de una carpeta, con una sola contraseña</span></span>
                     <span class="home-btn-arrow"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
                 </button>
                 <button class="home-btn" id="btn-go-usb">
                     <span class="home-btn-icon" style="color:#7ab8d4;background:rgba(122,184,212,.08);border-color:rgba(122,184,212,.28)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/><rect x="7" y="16" width="10" height="4" rx="1"/></svg>
                     </span>
-                    <span class="home-btn-text"><strong>Cifrar dispositivo USB</strong><span>Cifra o descifra todos los archivos de una unidad USB</span></span>
+                    <span class="home-btn-text"><strong>Cifrar / descifrar USB</strong><span>Una unidad removible completa, con detección de dispositivos</span></span>
                     <span class="home-btn-arrow"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></span>
                 </button>
             </div>
@@ -40,6 +44,19 @@
                     <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
                     Volver
                 </button>
+
+                <!-- Pestañas: cifrar y descifrar archivo son la misma función
+                     vista desde dos lados; cambian de vista sin volver al inicio -->
+                <div class="tabs">
+                    <button class="tab active" id="file-tab-enc">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Cifrar archivo
+                    </button>
+                    <button class="tab" id="file-tab-dec">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M17 11V7"/></svg>
+                        Descifrar archivo
+                    </button>
+                </div>
 
                 <div class="drop-zone" id="enc-drop" role="button" tabindex="0" aria-label="Zona de carga de archivo">
                     <input type="file" id="enc-file-input" tabindex="-1" aria-hidden="true">
@@ -249,6 +266,18 @@
                     Volver
                 </button>
 
+                <!-- Mismas pestañas que la vista de cifrado (ver arriba) -->
+                <div class="tabs">
+                    <button class="tab" id="fdec-tab-enc">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Cifrar archivo
+                    </button>
+                    <button class="tab active" id="fdec-tab-dec">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M17 11V7"/></svg>
+                        Descifrar archivo
+                    </button>
+                </div>
+
                 <div class="drop-zone" id="dec-drop" role="button" tabindex="0" aria-label="Zona de carga de archivo cifrado">
                     <input type="file" id="dec-file-input" accept=".c3v" tabindex="-1" aria-hidden="true">
                     <div class="drop-icon" id="dec-drop-icon">
@@ -303,7 +332,7 @@
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
                     <div>
                         <div class="section-label">Dispositivos detectados</div>
-                        <div style="font:500 11.5px/1 ui-monospace,monospace;color:var(--sub);margin-top:3px">Solo USB y unidades removibles</div>
+                        <div class="section-sub">Solo USB y unidades removibles</div>
                     </div>
                     <button class="btn btn-secondary btn-sm" id="usb-refresh-btn">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -346,7 +375,7 @@
                             <svg id="usb-eye1" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
                     </div>
-                    <div class="strength-bar" id="usb-sbar" style="display:none"><div class="seg" id="usg0"></div><div class="seg" id="usg1"></div><div class="seg" id="usg2"></div><div class="seg" id="usg3"></div></div>
+                    <div class="strength-bar" id="usb-sbar" style="display:none"><div class="seg" id="usb-sg0"></div><div class="seg" id="usb-sg1"></div><div class="seg" id="usb-sg2"></div><div class="seg" id="usb-sg3"></div></div>
                     <div class="strength-txt" id="usb-stxt" style="display:none">–</div>
                     <div class="gen-strip" id="usb-gen-strip" style="display:none">
                         <code id="usb-gen-val"></code>
@@ -379,7 +408,7 @@
                     <div style="font:10.5px/1.4 ui-monospace,monospace;color:var(--sub);text-align:center">Los archivos cifrados se descargarán individualmente — los originales no se modifican</div>
                 </div>
 
-                <div id="usb-warn-enc" class="alert alert-warn">
+                <div id="usb-warn-enc" class="alert alert-err">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     <span><strong>Operación irreversible:</strong> Cada archivo será cifrado y el original eliminado (sobrescrito con ceros). Si pierdes la contraseña, los datos son irrecuperables. Haz una copia de seguridad antes de continuar.</span>
                 </div>
@@ -394,6 +423,11 @@
                     <svg viewBox="0 0 24 24"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/></svg>
                     <span id="usb-btn-label">Seleccionar directorio USB y cifrar</span>
                 </button>
+                <!-- Explica por qué el botón está deshabilitado (lo muestra
+                     y oculta validate() según haya unidades detectadas) -->
+                <div id="usb-need-device" class="usb-need-device">
+                    Conecta una unidad USB y pulsa «Actualizar» para habilitar el cifrado.
+                </div>
                 <div style="font:10.5px/1.4 ui-monospace,monospace;color:var(--sub);text-align:center">El navegador pedirá confirmar el acceso al directorio seleccionado</div>
 
                 <div id="usb-loading" style="display:none">
@@ -421,7 +455,9 @@
             </div>
         </div>
 
-        <div style="width:100%;max-width:520px;margin:12px 0">
+        <!-- Sin ancho fijo: el .sec-notice interior ya usa los mismos
+             anchos responsivos que las tarjetas (520/640/760px) -->
+        <div style="width:100%;margin:12px 0">
             <div class="sec-notice" style="border-color:rgba(74,130,190,.28)">
                 <button class="sec-toggle" id="luks-toggle" style="color:#7ab8d4">
                     <span>
@@ -447,3 +483,116 @@
 
     </div>
     <!-- ─ fin v-usb ───────────────────────────────────────── -->
+
+    <!-- ─── Vista: Cifrar / descifrar carpeta ─────────────── -->
+    <div id="v-folder" class="view" hidden>
+
+        <div class="vault-card">
+            <div class="card-body">
+                <button class="back-btn" id="fld-back">
+                    <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                    Volver
+                </button>
+
+                <div class="tabs">
+                    <button class="tab active" id="fld-tab-enc">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Cifrar carpeta
+                    </button>
+                    <button class="tab" id="fld-tab-dec">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline;vertical-align:middle;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M17 11V7"/></svg>
+                        Descifrar carpeta
+                    </button>
+                </div>
+
+                <div class="field">
+                    <div class="field-head">
+                        <label for="fld-pwd">Contraseña de la carpeta</label>
+                        <button type="button" class="btn-gen" id="fld-gen-btn">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                            Generar
+                        </button>
+                    </div>
+                    <div class="input-row">
+                        <input type="password" id="fld-pwd" placeholder="Contraseña para cifrar / descifrar" autocomplete="new-password">
+                        <button class="btn-eye" type="button" id="fld-eye1-btn">
+                            <svg id="fld-eye1" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                    <div class="strength-bar" id="fld-sbar" style="display:none"><div class="seg" id="fld-sg0"></div><div class="seg" id="fld-sg1"></div><div class="seg" id="fld-sg2"></div><div class="seg" id="fld-sg3"></div></div>
+                    <div class="strength-txt" id="fld-stxt" style="display:none">–</div>
+                    <div class="gen-strip" id="fld-gen-strip" style="display:none">
+                        <code id="fld-gen-val"></code>
+                        <button type="button" id="fld-gen-copy">Copiar</button>
+                    </div>
+                </div>
+
+                <div class="field" id="fld-pwd2-field">
+                    <label for="fld-pwd2">Confirmar contraseña</label>
+                    <div class="input-row">
+                        <input type="password" id="fld-pwd2" placeholder="Repite la contraseña" autocomplete="new-password">
+                        <button class="btn-eye" type="button" id="fld-eye2-btn">
+                            <svg id="fld-eye2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                    <div class="match-txt" id="fld-match"></div>
+                </div>
+
+                <div id="fld-compat-warn" class="alert alert-warn" style="display:none">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span>Tu navegador no soporta escritura directa en carpetas (File System Access API). Puedes usar el <strong>modo alternativo</strong>: selecciona la carpeta, cifra los archivos y descárgalos como <code>.c3v</code>.</span>
+                </div>
+
+                <div id="fld-fallback-section" style="display:none;flex-direction:column;gap:10px">
+                    <input type="file" id="fld-fallback-input" webkitdirectory multiple style="display:none">
+                    <button class="btn btn-secondary" id="fld-fallback-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h4l2-3h6l2 3h4a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3"/></svg>
+                        Seleccionar carpeta y cifrar (modo alternativo)
+                    </button>
+                    <div style="font:10.5px/1.4 ui-monospace,monospace;color:var(--sub);text-align:center">Los archivos cifrados se descargarán individualmente — los originales no se modifican</div>
+                </div>
+
+                <div id="fld-warn-enc" class="alert alert-err">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span><strong>Operación irreversible:</strong> Cada archivo será cifrado y el original eliminado (sobrescrito con ceros). Si pierdes la contraseña, los datos son irrecuperables. Haz una copia de seguridad antes de continuar.</span>
+                </div>
+                <div id="fld-warn-dec" class="alert alert-info" style="display:none">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                    <span>Se descifrarán todos los archivos <code>.c3v</code> de la carpeta usando la contraseña del vault. Los archivos cifrados serán eliminados una vez restaurados.</span>
+                </div>
+
+                <div id="fld-alert" style="display:none"></div>
+
+                <button class="btn btn-primary" id="fld-btn" disabled>
+                    <svg viewBox="0 0 24 24"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/></svg>
+                    <span id="fld-btn-label">Seleccionar carpeta y cifrar</span>
+                </button>
+                <div style="font:10.5px/1.4 ui-monospace,monospace;color:var(--sub);text-align:center">El navegador pedirá confirmar el acceso a la carpeta seleccionada</div>
+
+                <div id="fld-loading" style="display:none">
+                    <div class="loading" style="padding:4px 0 10px">
+                        <div class="spinner"></div>
+                        <div class="loading-msg" id="fld-loading-msg">Derivando clave maestra…</div>
+                    </div>
+                    <div class="prog-wrap">
+                        <div class="prog-track"><div class="prog-fill" id="fld-prog-fill"></div></div>
+                        <div class="prog-stats">
+                            <span class="prog-pct" id="fld-prog-pct">0%</span>
+                            <span class="prog-count" id="fld-prog-count">0 / 0 archivos</span>
+                        </div>
+                        <div class="prog-file" id="fld-prog-file">Iniciando…</div>
+                    </div>
+                </div>
+
+                <div id="fld-result" style="display:none">
+                    <div class="alert alert-ok" id="fld-result-msg">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+                        <span id="fld-result-txt">Operación completada.</span>
+                    </div>
+                    <button class="btn btn-ghost" id="fld-reset-btn" style="margin-top:8px">Nueva operación</button>
+                </div>
+            </div>
+        </div>
+
+        </div>
+    <!-- ─ fin v-folder ────────────────────────────────────── -->

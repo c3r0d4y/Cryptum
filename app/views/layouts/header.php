@@ -8,11 +8,13 @@
 <html lang="es">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <!-- Sin maximum-scale: bloquear el zoom perjudica la accesibilidad en móvil -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#06090f">
     <title>Cryptum</title>
-    <link rel="stylesheet" href="<?= rtrim(BASE_URL, '/') ?>/assets/css/app.css">
+    <!-- ?v= fuerza la recarga del asset cuando cambia la versión de la app -->
+    <link rel="stylesheet" href="<?= rtrim(BASE_URL, '/') ?>/assets/css/app.css?v=<?= APP_VERSION ?>">
 </head>
 <body data-base="<?= BASE_URL ?>" data-token="<?= htmlspecialchars($token ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
@@ -30,4 +32,5 @@
 </div>
 
 <!-- ── Contenido principal ───────────────────────────────────────────── -->
-<main id="app-main">
+<!-- tabindex="-1" permite mover el foco aquí al cambiar de vista (lectores de pantalla) -->
+<main id="app-main" tabindex="-1">

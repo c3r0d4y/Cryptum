@@ -110,7 +110,7 @@
             </div>
             <div>
                 <div class="diag-usb-title">Cifra todos los archivos de una USB</div>
-                <div class="diag-usb-desc">El proceso es idéntico, con una diferencia: se genera una sola llave para todo el dispositivo. Cada archivo se cifra uno a uno, y los originales se sobreescriben con ceros antes de borrarse para dificultar su recuperación forense.</div>
+                <div class="diag-usb-desc">El proceso es idéntico, con una diferencia: se genera una sola llave para todo el dispositivo. Cada archivo se cifra uno a uno y el original se elimina tras verificar que su copia cifrada quedó escrita. La sobreescritura con ceros es un mejor esfuerzo: en memorias USB y SSD el controlador puede conservar copias internas, por lo que no debe considerarse un borrado forense garantizado.</div>
             </div>
         </div>
 
@@ -157,6 +157,7 @@
     </div>
 </footer>
 
-<script src="<?= rtrim(BASE_URL, '/') ?>/assets/js/app.js"></script>
+<!-- ?v= fuerza la recarga del asset cuando cambia la versión de la app -->
+<script src="<?= rtrim(BASE_URL, '/') ?>/assets/js/app.js?v=<?= APP_VERSION ?>"></script>
 </body>
 </html>

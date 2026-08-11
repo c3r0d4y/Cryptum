@@ -9,7 +9,11 @@ const APP_TOKEN = document.body.dataset.token || '';
    ═══════════════════════════════════════════════════════════════ */
 const K = {
     MAGIC:    new Uint8Array([0x43, 0x33, 0x56, 0x4C]), // "C3VL"
-    VER:      0x01,
+    // v3: el nombre del archivo viaja DENTRO del contenido cifrado.
+    // v1 (legado, solo lectura) lo guardaba en claro en el encabezado
+    // y filtraba metadatos a cualquiera que interceptara el archivo.
+    VER:        0x03,
+    VER_LEGADO: 0x01,
     SALT_LEN: 32,    // 256 bits
     IV_LEN:   12,    // 96 bits (óptimo para AES-GCM)
     TAG_BITS: 128,   // Tag de autenticación completo
@@ -23,6 +27,14 @@ const K = {
    UTILIDADES
    ═══════════════════════════════════════════════════════════════ */
 const $ = id => document.getElementById(id);
+
+// Convierte texto en HTML inofensivo — obligatorio antes de insertar con
+// innerHTML cualquier dato externo (nombres de archivo, datos de lsblk, etc.)
+function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+        { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+    ));
+}
 
 function fmtBytes(b) {
     if (b < 1024) return b + ' B';
@@ -45,7 +57,7 @@ function alertHtml(type, msg) {
         warn: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
         info: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
     };
-    return `<div class="alert alert-${type}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18">${icons[type]||icons.info}</svg><span>${msg}</span></div>`;
+    return `<div class="alert alert-${type}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="18" height="18">${icons[type]||icons.info}</svg><span>${esc(msg)}</span></div>`;
 }
 
 function setAlert(id, type, msg) {
@@ -74,13 +86,17 @@ function showToast(msg, ms = 2500) {
    NAVEGACIÓN DE VISTAS
    ═══════════════════════════════════════════════════════════════ */
 const Nav = {
-    views: ['v-home','v-encrypt','v-result','v-decrypt-link','v-decrypt-file','v-usb'],
+    views: ['v-home','v-encrypt','v-result','v-decrypt-link','v-decrypt-file','v-folder','v-usb'],
     go(name) {
         this.views.forEach(id => {
             const el = $(id);
             if (el) el.hidden = (id !== 'v-' + name);
         });
         window.scrollTo(0, 0);
+        // Mover el foco al contenido para que los lectores de pantalla
+        // anuncien el cambio de vista (el <main> tiene tabindex="-1")
+        const main = $('app-main');
+        if (main) main.focus({ preventScroll: true });
     }
 };
 
@@ -128,6 +144,29 @@ const UI = {
 /* ═══════════════════════════════════════════════════════════════
    NÚCLEO CRIPTOGRÁFICO (Web Crypto API)
    ═══════════════════════════════════════════════════════════════ */
+
+// Une [NOMLEN(4)][NOMBRE][DATOS] en un solo buffer que se cifra completo.
+// Así el nombre del archivo queda protegido igual que el contenido.
+function packNamePlusData(filename, buffer) {
+    const nom = new TextEncoder().encode(filename);
+    const out = new Uint8Array(4 + nom.length + buffer.byteLength);
+    new DataView(out.buffer).setUint32(0, nom.length, true);
+    out.set(nom, 4);
+    out.set(new Uint8Array(buffer), 4 + nom.length);
+    return out;
+}
+
+// Separa el buffer ya descifrado en { data, filename }
+function unpackNamePlusData(plainBuf) {
+    const dv     = new DataView(plainBuf);
+    const nomLen = dv.getUint32(0, true);
+    if (nomLen > 4096 || nomLen + 4 > plainBuf.byteLength) {
+        throw new Error('Encabezado corrupto.');
+    }
+    const filename = new TextDecoder().decode(new Uint8Array(plainBuf, 4, nomLen));
+    return { data: plainBuf.slice(4 + nomLen), filename };
+}
+
 const Crypto = {
 
     async deriveKey(password, salt) {
@@ -144,22 +183,20 @@ const Crypto = {
         );
     },
 
-    // Cifrar → Uint8Array con formato C3VL
+    // Cifrar → Uint8Array con formato C3VL v3
     async encrypt(buffer, filename, password) {
         const salt  = crypto.getRandomValues(new Uint8Array(K.SALT_LEN));
         const iv    = crypto.getRandomValues(new Uint8Array(K.IV_LEN));
         const key   = await this.deriveKey(password, salt);
+
+        // El nombre se cifra junto con los datos (en v1 iba en claro)
+        const plano = packNamePlusData(filename, buffer);
         const ct    = await crypto.subtle.encrypt(
-            { name:'AES-GCM', iv, tagLength: K.TAG_BITS }, key, buffer
+            { name:'AES-GCM', iv, tagLength: K.TAG_BITS }, key, plano
         );
 
-        // Encabezado: nombre original del archivo (restaurado al descifrar)
-        const nomBytes = new TextEncoder().encode(filename);
-        const nomLen   = new Uint8Array(4);
-        new DataView(nomLen.buffer).setUint32(0, nomBytes.length, true);
-
-        // Formato: [C3VL][VER][SALT(32)][IV(12)][NOMLEN(4)][NOM(N)][CIPHERTEXT+TAG]
-        const partes = [K.MAGIC, new Uint8Array([K.VER]), salt, iv, nomLen, nomBytes, new Uint8Array(ct)];
+        // Formato v3: [C3VL][0x03][SALT(32)][IV(12)][CIPHERTEXT+TAG]
+        const partes = [K.MAGIC, new Uint8Array([K.VER]), salt, iv, new Uint8Array(ct)];
         const total  = partes.reduce((s, p) => s + p.length, 0);
         const out    = new Uint8Array(total);
         let pos = 0;
@@ -168,6 +205,7 @@ const Crypto = {
     },
 
     // Descifrar → { data: ArrayBuffer, filename: string }
+    // Acepta v3 (actual) y v1 (legado, con el nombre en claro en el encabezado)
     async decrypt(buffer, password) {
         const bytes = new Uint8Array(buffer);
         // Verificar firma C3VL
@@ -176,17 +214,22 @@ const Crypto = {
         }
         let pos = 4;
         const ver = bytes[pos++];
-        if (ver !== K.VER) throw new Error(`Versión de formato ${ver} no soportada.`);
+        if (ver !== K.VER && ver !== K.VER_LEGADO) {
+            throw new Error(`Versión de formato ${ver} no soportada.`);
+        }
 
         const salt = buffer.slice(pos, pos + K.SALT_LEN); pos += K.SALT_LEN;
         const iv   = buffer.slice(pos, pos + K.IV_LEN);   pos += K.IV_LEN;
 
-        const dv      = new DataView(buffer);
-        const nomLen  = dv.getUint32(pos, true); pos += 4;
-        if (nomLen > 4096) throw new Error('Encabezado corrupto.');
-        const nomBytes = bytes.slice(pos, pos + nomLen);
-        const filename = new TextDecoder().decode(nomBytes);
-        pos += nomLen;
+        // Solo v1 lleva el nombre en claro antes del texto cifrado
+        let nombreLegado = '';
+        if (ver === K.VER_LEGADO) {
+            const dv      = new DataView(buffer);
+            const nomLen  = dv.getUint32(pos, true); pos += 4;
+            if (nomLen > 4096) throw new Error('Encabezado corrupto.');
+            nombreLegado = new TextDecoder().decode(bytes.slice(pos, pos + nomLen));
+            pos += nomLen;
+        }
 
         const ct  = buffer.slice(pos);
         const key = await this.deriveKey(password, new Uint8Array(salt));
@@ -198,7 +241,9 @@ const Crypto = {
         } catch {
             throw new Error('Contraseña incorrecta o archivo dañado. Verifica la contraseña e inténtalo de nuevo.');
         }
-        return { data: plain, filename };
+
+        if (ver === K.VER_LEGADO) return { data: plain, filename: nombreLegado };
+        return unpackNamePlusData(plain);
     }
 };
 
@@ -207,11 +252,13 @@ const Crypto = {
    ═══════════════════════════════════════════════════════════════ */
 const API = {
     async upload(blob) {
-        const base64 = await this._toBase64(blob);
+        // El blob cifrado viaja como binario crudo: sin base64 el cuerpo pesa
+        // un 33% menos y el servidor lo escribe a disco por bloques sin
+        // cargarlo completo en memoria.
         const resp = await fetch(APP_BASE + '/api/upload', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: base64 })
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: blob
         });
         const data = await resp.json();
         if (!data.ok) throw new Error(data.error || 'Error al subir a bóveda');
@@ -231,15 +278,6 @@ const API = {
     async status(token) {
         const resp = await fetch(`${APP_BASE}/api/status?t=${token}`);
         return resp.json();
-    },
-
-    _toBase64(blob) {
-        return new Promise((res, rej) => {
-            const r = new FileReader();
-            r.onload = () => res(r.result.split(',')[1]);
-            r.onerror = rej;
-            r.readAsDataURL(blob);
-        });
     }
 };
 
@@ -433,7 +471,8 @@ const Enc = {
         const zone = $('enc-drop');
         zone.classList.add('has-file');
         $('enc-drop-icon').innerHTML = `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
-        $('enc-drop-title').innerHTML = `<div class="drop-file-name">${f.name}</div>`;
+        // esc(): el nombre del archivo es dato externo, nunca va crudo a innerHTML
+        $('enc-drop-title').innerHTML = `<div class="drop-file-name">${esc(f.name)}</div>`;
         $('enc-drop-hint').innerHTML  = `<div class="drop-file-size">${fmtBytes(f.size)}</div>`;
         clearAlert('enc-alert');
         this.validate();
@@ -677,7 +716,8 @@ const DecFile = {
         const zone = $('dec-drop');
         zone.classList.add('has-file');
         $('dec-drop-icon').innerHTML='<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-        $('dec-drop-title').innerHTML=`<div class="drop-file-name">${f.name}</div>`;
+        // esc(): el nombre del archivo es dato externo, nunca va crudo a innerHTML
+        $('dec-drop-title').innerHTML=`<div class="drop-file-name">${esc(f.name)}</div>`;
         $('dec-drop-hint').innerHTML=`<div class="drop-file-size">${fmtBytes(f.size)}</div>`;
         clearAlert('dec-alert'); hide('dec-success');
         this.validate();
@@ -735,15 +775,18 @@ async function* walkFiles(dirHandle, relPath = '') {
    CIFRADO USB — CRYPTO CON CLAVE MAESTRA ÚNICA
    Derivación PBKDF2 se ejecuta UNA sola vez por todo el dispositivo.
    ─────────────────────────────────────────────────────────────────
-   Formato archivo USB (versión 0x02 — sin sal por archivo):
+   Formato archivo USB v4 (actual — nombre dentro del cifrado):
+   [C3VL][0x04][IV(12)][CIPHERTEXT+TAG]
+   Formato v2 (legado, solo lectura — nombre en claro):
    [C3VL][0x02][IV(12)][NOMLEN(4)][NOM(N)][CIPHERTEXT+TAG]
    ─────────────────────────────────────────────────────────────────
    Meta vault (salt del dispositivo):
    [C3VM][SALT(32)]
    ═══════════════════════════════════════════════════════════════ */
-const USB_VER     = 0x02;
-const USB_META    = '.cryptum_meta.bin';
-const META_MAGIC  = new Uint8Array([0x43, 0x33, 0x56, 0x4D]); // "C3VM"
+const USB_VER        = 0x04;
+const USB_VER_LEGADO = 0x02;
+const USB_META       = '.cryptum_meta.bin';
+const META_MAGIC     = new Uint8Array([0x43, 0x33, 0x56, 0x4D]); // "C3VM"
 
 const USBCrypto = {
 
@@ -760,40 +803,48 @@ const USBCrypto = {
         );
     },
 
-    // Cifra un buffer con la clave maestra ya derivada (IV aleatorio único por archivo)
+    // Cifra un buffer con la clave maestra ya derivada (IV aleatorio único por archivo).
+    // v4: el nombre del archivo se cifra junto con los datos (en v2 iba en claro).
     async encryptBuf(buffer, filename, masterKey) {
         const iv     = crypto.getRandomValues(new Uint8Array(K.IV_LEN));
-        const ct     = await crypto.subtle.encrypt({ name:'AES-GCM', iv, tagLength:K.TAG_BITS }, masterKey, buffer);
-        const nom    = new TextEncoder().encode(filename);
-        const nomLen = new Uint8Array(4);
-        new DataView(nomLen.buffer).setUint32(0, nom.length, true);
-        const partes = [K.MAGIC, new Uint8Array([USB_VER]), iv, nomLen, nom, new Uint8Array(ct)];
+        const plano  = packNamePlusData(filename, buffer);
+        const ct     = await crypto.subtle.encrypt({ name:'AES-GCM', iv, tagLength:K.TAG_BITS }, masterKey, plano);
+        const partes = [K.MAGIC, new Uint8Array([USB_VER]), iv, new Uint8Array(ct)];
         const total  = partes.reduce((s,p)=>s+p.length,0);
         const out    = new Uint8Array(total);
         let pos=0; for(const p of partes){out.set(p,pos);pos+=p.length;}
         return out;
     },
 
-    // Descifra un buffer usando la clave maestra (formato v0x02)
+    // Descifra un buffer usando la clave maestra (acepta v4 actual y v2 legado)
     async decryptBuf(buffer, masterKey) {
         const b = new Uint8Array(buffer);
         if (b[0]!==0x43||b[1]!==0x33||b[2]!==0x56||b[3]!==0x4C) throw new Error('No es un archivo Cryptum.');
         const ver = b[4];
-        if (ver === K.VER) throw new Error('VER_V1'); // archivo individual — caller usa Crypto.decrypt
-        if (ver !== USB_VER) throw new Error(`Versión ${ver} no soportada.`);
+        // Archivos individuales (v1/v3) usan sal propia — el caller usa Crypto.decrypt
+        if (ver === K.VER || ver === K.VER_LEGADO) throw new Error('VER_V1');
+        if (ver !== USB_VER && ver !== USB_VER_LEGADO) throw new Error(`Versión ${ver} no soportada.`);
         let pos = 5;
-        const iv     = buffer.slice(pos, pos+K.IV_LEN); pos+=K.IV_LEN;
-        const dv     = new DataView(buffer);
-        const nomLen = dv.getUint32(pos,true); pos+=4;
-        if(nomLen>4096) throw new Error('Encabezado corrupto.');
-        const nom    = new TextDecoder().decode(new Uint8Array(buffer,pos,nomLen));
-        pos+=nomLen;
-        const ct     = buffer.slice(pos);
+        const iv = buffer.slice(pos, pos+K.IV_LEN); pos+=K.IV_LEN;
+
+        // Solo v2 lleva el nombre en claro antes del texto cifrado
+        let nombreLegado = '';
+        if (ver === USB_VER_LEGADO) {
+            const dv     = new DataView(buffer);
+            const nomLen = dv.getUint32(pos,true); pos+=4;
+            if(nomLen>4096) throw new Error('Encabezado corrupto.');
+            nombreLegado = new TextDecoder().decode(new Uint8Array(buffer,pos,nomLen));
+            pos+=nomLen;
+        }
+
+        const ct = buffer.slice(pos);
         let plain;
         try {
             plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(iv),tagLength:K.TAG_BITS},masterKey,ct);
         } catch { throw new Error('Contraseña incorrecta o archivo dañado.'); }
-        return { data:plain, filename:nom };
+
+        if (ver === USB_VER_LEGADO) return { data:plain, filename:nombreLegado };
+        return unpackNamePlusData(plain);
     },
 
     // Escribe el archivo de metadatos con la sal del vault
@@ -816,118 +867,182 @@ const USBCrypto = {
         return b.slice(4, 4+K.SALT_LEN);
     },
 
-    // Elimina de forma segura (sobrescribe con ceros, luego borra)
+    /*
+     * Elimina un archivo sobrescribiéndolo con ceros — MEJOR ESFUERZO.
+     * keepExistingData evita que el navegador trunque el archivo antes de
+     * escribir. Aun así, la File System Access API escribe en un archivo
+     * temporal que reemplaza al original al cerrar, y en memorias USB/SSD
+     * el controlador puede conservar copias internas (wear leveling).
+     * NO debe presentarse al usuario como borrado forense garantizado.
+     */
     async secureDelete(parentHandle, name, size) {
         try {
             const fh = await parentHandle.getFileHandle(name);
-            const wr = await fh.createWritable();
-            await wr.write(new Uint8Array(size).fill(0));
+            const wr = await fh.createWritable({ keepExistingData: true });
+            await wr.write({ type: 'write', position: 0, data: new Uint8Array(size).fill(0) });
             await wr.close();
             await parentHandle.removeEntry(name);
-        } catch { /* best effort */ }
+        } catch { /* mejor esfuerzo */ }
     }
 };
 
 /* ═══════════════════════════════════════════════════════════════
    FLUJO USB — CIFRADO DEL DISPOSITIVO
    ═══════════════════════════════════════════════════════════════ */
-const USB_UI = {
+/* Fábrica de controladores de directorio.
+   USB y Carpeta comparten exactamente el mismo motor de cifrado (ambos
+   operan sobre un directorio elegido con el selector del navegador); lo
+   único que cambia son los IDs del DOM y algunos textos. En vez de
+   duplicar 400 líneas, se crea una instancia por vista:
+     p  → prefijo de los IDs en el HTML ('usb' o 'fld')
+     op → textos y opciones propias de cada modo
+   ══════════════════════════════════════════════════════════════ */
+function crearDirUI(p, op) {
+  return {
     mode: 'enc',
     selectedMountpoint: '',
+    // Solo aplica a la vista USB: mientras no se detecte ninguna unidad
+    // removible, el botón de cifrar permanece deshabilitado.
+    hayDispositivos: false,
 
     setMode(m) {
         this.mode = m;
-        $('usb-tab-enc').classList.toggle('active', m==='enc');
-        $('usb-tab-dec').classList.toggle('active', m==='dec');
-        $('usb-pwd2-field').style.display = m==='enc' ? '' : 'none';
-        $('usb-sbar').style.display  = m==='enc' ? '' : 'none';
-        $('usb-stxt').style.display  = m==='enc' ? '' : 'none';
-        $('usb-warn-enc').style.display = m==='enc' ? '' : 'none';
-        $('usb-warn-dec').style.display = m==='dec' ? '' : 'none';
-        $('usb-btn-label').textContent = m==='enc'
-            ? 'Seleccionar directorio USB y cifrar'
-            : 'Seleccionar directorio USB y descifrar';
+        $(p + '-tab-enc').classList.toggle('active', m==='enc');
+        $(p + '-tab-dec').classList.toggle('active', m==='dec');
+        $(p + '-pwd2-field').style.display = m==='enc' ? '' : 'none';
+        $(p + '-sbar').style.display  = m==='enc' ? '' : 'none';
+        $(p + '-stxt').style.display  = m==='enc' ? '' : 'none';
+        $(p + '-warn-enc').style.display = m==='enc' ? '' : 'none';
+        $(p + '-warn-dec').style.display = m==='dec' ? '' : 'none';
+        // Las etiquetas del botón las define cada instancia (USB o carpeta)
+        $(p + '-btn-label').textContent = m==='enc' ? op.btnEnc : op.btnDec;
         this.validate();
     },
 
     async loadDevices() {
-        $('usb-device-list').innerHTML = '<div class="loading"><div class="spinner"></div><div class="loading-msg">Escaneando dispositivos…</div></div>';
+        // Solo la vista USB tiene panel de dispositivos
+        if (!op.listaDispositivos || !$(p + '-device-list')) return;
+        $(p + '-device-list').innerHTML = '<div class="loading"><div class="spinner"></div><div class="loading-msg">Escaneando dispositivos…</div></div>';
         try {
             const resp = await fetch(APP_BASE + '/api/list-usb');
             const data = await resp.json();
+
+            /* El listado de dispositivos lo arma el servidor con lsblk, así que
+               solo tiene sentido cuando Cryptum corre en la propia máquina. Si
+               la app está en un servidor remoto (403) o el hosting no permite
+               ejecutar lsblk (note), no hay lista que mostrar — pero cifrar SÍ
+               funciona igual, porque el selector de carpetas lo abre el propio
+               navegador sobre el equipo del visitante. Se explica en vez de
+               dejar un panel vacío que parece un error. */
+            if (data.ok === false || data.note) {
+                this.renderRemoteNotice();
+                return;
+            }
             this.renderDevices(data);
         } catch(e) {
-            $('usb-device-list').innerHTML = alertHtml('err', 'No se pudo obtener la lista de dispositivos: ' + (e.message||''));
+            this.hayDispositivos = false;
+            this.validate();
+            $(p + '-device-list').innerHTML = alertHtml('err', 'No se pudo obtener la lista de dispositivos: ' + (e.message||''));
         }
+    },
+
+    /* Aviso para cuando la app corre en un servidor remoto: el listado no
+       está disponible, pero el cifrado sí. Incluye el enlace al repositorio
+       para quien prefiera ejecutar Cryptum en su propia máquina. */
+    renderRemoteNotice() {
+        $(p + '-device-list').innerHTML =
+            '<div class="usb-empty usb-notice">' +
+            '<strong>El listado de dispositivos solo funciona en modo local.</strong><br>' +
+            'Esta copia de Cryptum corre en un servidor, y un servidor no puede ver las unidades conectadas a tu equipo.<br><br>' +
+            'Para cifrar los archivos de tu USB desde aquí, usa <strong>Cifrar / descifrar carpeta</strong> ' +
+            'y elige la carpeta de la unidad: todo el cifrado ocurre en tu equipo, ningún archivo ni contraseña sale de él.<br><br>' +
+            '¿Prefieres el listado automático y el cifrado de disco completo? Ejecuta Cryptum en tu máquina: ' +
+            '<a href="https://github.com/c3r0d4y/cryptum" target="_blank" rel="noopener">github.com/c3r0d4y/cryptum</a>' +
+            '</div>';
+        hide((p + '-mp-row'));
+        this.selectedMountpoint = '';
+        // Sin listado no hay dispositivo que cifrar desde aquí
+        this.hayDispositivos = false;
+        this.validate();
     },
 
     renderDevices(data) {
         const devices   = data.devices || [];
         const extraMnts = data.extra_mounts || [];
-        const container = $('usb-device-list');
+        const container = $(p + '-device-list');
         let html = '';
 
-        if (devices.length === 0 && extraMnts.length === 0) {
-            html = '<div class="usb-empty">No se detectaron dispositivos USB o removibles.<br>Conecta una unidad y pulsa "Actualizar".</div>';
+        // El botón de cifrar depende de que haya al menos una unidad
+        this.hayDispositivos = devices.length > 0 || extraMnts.length > 0;
+
+        if (!this.hayDispositivos) {
+            html = '<div class="usb-empty usb-empty-warn">No se detectaron dispositivos USB o removibles.<br>Conecta una unidad y pulsa «Actualizar».</div>';
         } else {
+            // esc() en todos los datos: vendor/model/label los reporta el propio
+            // dispositivo USB, y un dispositivo malicioso podría inyectar HTML
             for (const dev of devices) {
                 const label = [dev.vendor, dev.model].filter(Boolean).join(' ').trim() || dev.name;
                 // data-mp guarda el mountpoint; el click se enlaza con addEventListener tras insertar el HTML
                 html += `<div class="usb-card" data-mp="">
                     <span class="usb-card-icon"><svg viewBox="0 0 24 24"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/><rect x="7" y="16" width="10" height="4" rx="1"/></svg></span>
                     <span class="usb-card-info">
-                        <span class="usb-card-name">${label}</span>
-                        <span class="usb-card-meta">/dev/${dev.name} · ${dev.size} · ${(dev.tran||'USB').toUpperCase()}</span>
+                        <span class="usb-card-name">${esc(label)}</span>
+                        <span class="usb-card-meta">/dev/${esc(dev.name)} · ${esc(dev.size)} · ${esc((dev.tran||'USB').toUpperCase())}</span>
                     </span></div>`;
-                for (const p of dev.parts) {
-                    const mpInfo = p.mounted ? `<span class="mp">${p.mountpoint}</span>` : 'no montada';
-                    html += `<div class="usb-part" data-mp="${p.mountpoint||''}">
-                        └ /dev/${p.name} · ${p.size} · ${p.fstype||'?'} · ${mpInfo}</div>`;
+                // La variable se llama "part" y no "p": "p" es el prefijo de
+                // los IDs de esta instancia y taparlo aquí sería una trampa
+                for (const part of dev.parts) {
+                    const mpInfo = part.mounted ? `<span class="mp">${esc(part.mountpoint)}</span>` : 'no montada';
+                    html += `<div class="usb-part" data-mp="${esc(part.mountpoint||'')}">
+                        └ /dev/${esc(part.name)} · ${esc(part.size)} · ${esc(part.fstype||'?')} · ${mpInfo}</div>`;
                 }
             }
             for (const m of extraMnts) {
-                html += `<div class="usb-card" data-mp="${m.mountpoint}">
+                html += `<div class="usb-card" data-mp="${esc(m.mountpoint)}">
                     <span class="usb-card-icon"><svg viewBox="0 0 24 24"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/><rect x="7" y="16" width="10" height="4" rx="1"/></svg></span>
                     <span class="usb-card-info">
-                        <span class="usb-card-name">${m.device}</span>
-                        <span class="usb-card-meta"><span class="mp">${m.mountpoint}</span> · ${m.fstype}</span>
+                        <span class="usb-card-name">${esc(m.device)}</span>
+                        <span class="usb-card-meta"><span class="mp">${esc(m.mountpoint)}</span> · ${esc(m.fstype)}</span>
                     </span></div>`;
             }
         }
         container.innerHTML = html;
         // Listener sin inline handler para cumplir la política CSP script-src 'self'
         container.querySelectorAll('.usb-card, .usb-part').forEach(el => {
-            el.addEventListener('click', () => USB_UI.selectDevice(el, el.dataset.mp));
+            el.addEventListener('click', () => this.selectDevice(el, el.dataset.mp));
         });
+        // Refrescar el botón: se habilita solo si se detectó alguna unidad
+        this.validate();
     },
 
     selectDevice(el, mountpoint) {
+        if (!op.listaDispositivos) return;
         document.querySelectorAll('.usb-card,.usb-part').forEach(e=>e.classList.remove('active'));
         el.classList.add('active');
         this.selectedMountpoint = mountpoint;
         if (mountpoint) {
-            $('usb-mp-val').textContent = mountpoint;
-            show('usb-mp-row');
+            $(p + '-mp-val').textContent = mountpoint;
+            show((p + '-mp-row'));
         } else {
-            hide('usb-mp-row');
+            hide((p + '-mp-row'));
         }
         this.validate();
     },
 
     onPwd() {
         if (this.mode !== 'enc') { this.validate(); return; }
-        const v = $('usb-pwd').value;
+        const v = $(p + '-pwd').value;
         const f = v ? Enc.strength(v) : -1;
         const cls=['l1','l1','l2','l3','l4'], lbl=['Muy débil','Débil','Regular','Buena','Fuerte'];
-        for(let i=0;i<4;i++){const s=$('usg'+i);s.className='seg';if(f>=0&&i<=f)s.classList.add(cls[f]);}
-        $('usb-stxt').textContent = v ? lbl[f] : '–';
+        for(let i=0;i<4;i++){const s=$(p + '-sg'+i);s.className='seg';if(f>=0&&i<=f)s.classList.add(cls[f]);}
+        $(p + '-stxt').textContent = v ? lbl[f] : '–';
         this.onPwd2(); this.validate();
     },
 
     onPwd2() {
         if(this.mode!=='enc') return;
-        const p1=$('usb-pwd').value, p2=$('usb-pwd2').value;
-        const el=$('usb-match');
+        const p1=$(p + '-pwd').value, p2=$(p + '-pwd2').value;
+        const el=$(p + '-match');
         if(!p2){el.textContent='';el.className='match-txt';}
         else if(p1===p2){el.textContent='✓ Las contraseñas coinciden';el.className='match-txt ok';}
         else{el.textContent='✗ No coinciden';el.className='match-txt err';}
@@ -937,35 +1052,45 @@ const USB_UI = {
     validate() {
         const hasCompat = !!window.showDirectoryPicker;
         // Modo alternativo visible solo cuando no hay File System Access API
-        $('usb-compat-warn').style.display     = hasCompat ? 'none' : '';
-        $('usb-fallback-section').style.display = hasCompat ? 'none' : 'flex';
-        $('usb-btn').style.display             = hasCompat ? '' : 'none';
+        $(p + '-compat-warn').style.display     = hasCompat ? 'none' : '';
+        $(p + '-fallback-section').style.display = hasCompat ? 'none' : 'flex';
+        $(p + '-btn').style.display             = hasCompat ? '' : 'none';
 
-        if (!hasCompat) { $('usb-btn').disabled = true; return; }
+        if (!hasCompat) { $(p + '-btn').disabled = true; return; }
 
-        const pwd = $('usb-pwd').value;
+        const pwd = $(p + '-pwd').value;
         let ok = pwd.length > 0;
-        if (this.mode === 'enc') ok = ok && pwd === $('usb-pwd2').value;
-        $('usb-btn').disabled = !ok;
+        if (this.mode === 'enc') ok = ok && pwd === $(p + '-pwd2').value;
+
+        /* En la vista USB no tiene sentido operar sin una unidad conectada:
+           el botón se mantiene deshabilitado hasta que se detecte alguna.
+           La vista de carpeta no pasa por aquí (no lista dispositivos). */
+        if (op.listaDispositivos) {
+            ok = ok && this.hayDispositivos;
+            const aviso = $(p + '-need-device');
+            if (aviso) aviso.style.display = this.hayDispositivos ? 'none' : '';
+        }
+
+        $(p + '-btn').disabled = !ok;
     },
 
     async run() {
         const hasCompat = !!window.showDirectoryPicker;
         if (!hasCompat) return; // el fallback se activa por su propio botón
 
-        const pwd = $('usb-pwd').value;
-        clearAlert('usb-alert'); hide('usb-result');
+        const pwd = $(p + '-pwd').value;
+        clearAlert((p + '-alert')); hide((p + '-result'));
 
         // Abrir selector de directorio (nativo del SO)
         let rootHandle;
         try {
             rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
         } catch(e) {
-            if (e.name !== 'AbortError') setAlert('usb-alert','err','No se pudo abrir el selector: ' + e.message);
+            if (e.name !== 'AbortError') setAlert((p + '-alert'),'err','No se pudo abrir el selector: ' + e.message);
             return;
         }
 
-        hide('usb-btn'); show('usb-loading');
+        hide((p + '-btn')); show((p + '-loading'));
 
         try {
             if (this.mode === 'enc') {
@@ -974,11 +1099,11 @@ const USB_UI = {
                 await this.decryptDevice(rootHandle, pwd);
             }
         } catch(e) {
-            hide('usb-loading'); show('usb-btn');
-            setAlert('usb-alert','err', e.message || 'Error inesperado.');
+            hide((p + '-loading')); show((p + '-btn'));
+            setAlert((p + '-alert'),'err', e.message || 'Error inesperado.');
         } finally {
             // Limpiar contraseñas de memoria
-            $('usb-pwd').value=''; $('usb-pwd2').value='';
+            $(p + '-pwd').value=''; $(p + '-pwd2').value='';
         }
     },
 
@@ -986,7 +1111,7 @@ const USB_UI = {
         // Verificar si ya está cifrado
         try {
             await rootHandle.getFileHandle(USB_META);
-            throw new Error('Este dispositivo ya tiene vault Cryptum activo. Descífralo primero antes de volver a cifrarlo.');
+            throw new Error(`${op.det} ${op.ent} ya tiene un vault Cryptum activo. Descífralo primero antes de volver a cifrarlo.`);
         } catch(e) {
             if (e.message.includes('vault Cryptum')) throw e;
             // No existe meta → continuar
@@ -994,6 +1119,12 @@ const USB_UI = {
 
         // Generar sal única para este dispositivo
         const salt = crypto.getRandomValues(new Uint8Array(K.SALT_LEN));
+
+        // La sal se guarda ANTES de cifrar el primer archivo. Antes se
+        // escribía al final: si el proceso se interrumpía a mitad (pestaña
+        // cerrada, USB desconectada), los archivos ya cifrados quedaban
+        // irrecuperables para siempre porque la sal nunca llegaba al disco.
+        await USBCrypto.writeMeta(rootHandle, salt);
 
         // Derivar clave maestra UNA sola vez (PBKDF2)
         this.setProgress(-1,-1,'Derivando clave maestra (PBKDF2-SHA-512)…');
@@ -1007,6 +1138,8 @@ const USB_UI = {
         }
 
         if (files.length === 0) {
+            // Sin archivos no hay vault: se retira la sal recién escrita
+            try { await rootHandle.removeEntry(USB_META); } catch {}
             throw new Error('No se encontraron archivos para cifrar en el directorio seleccionado.');
         }
 
@@ -1023,18 +1156,22 @@ const USB_UI = {
             const wr   = await newH.createWritable();
             await wr.write(enc); await wr.close();
 
-            // Eliminar original de forma segura (sobrescribir con ceros)
+            // Verificar que la copia cifrada quedó completa ANTES de tocar
+            // el original: si la escritura falló, el original se conserva.
+            const check = await newH.getFile();
+            if (check.size !== enc.length) {
+                throw new Error(`No se pudo verificar la escritura de "${relPath}". Proceso detenido; el archivo original NO fue borrado.`);
+            }
+
+            // Eliminar original (sobrescritura con ceros de mejor esfuerzo)
             await USBCrypto.secureDelete(parentHandle, name, file.size);
 
             done++;
         }
 
-        // Guardar metadatos del vault (sal) en el dispositivo
-        await USBCrypto.writeMeta(rootHandle, salt);
-
-        hide('usb-loading'); show('usb-btn');
-        $('usb-result-txt').textContent = `✓ ${done} archivo${done!==1?'s':''} cifrado${done!==1?'s':''} con AES-256-GCM. El vault Cryptum está activo en el dispositivo.`;
-        show('usb-result');
+        hide((p + '-loading')); show((p + '-btn'));
+        $(p + '-result-txt').textContent = `✓ ${done} archivo${done!==1?'s':''} cifrado${done!==1?'s':''} con AES-256-GCM. El vault Cryptum está activo en ${op.laEnt}.`;
+        show((p + '-result'));
     },
 
     async decryptDevice(rootHandle, password) {
@@ -1054,7 +1191,11 @@ const USB_UI = {
         }
 
         if (files.length === 0) {
-            throw new Error('No se encontraron archivos .c3v en el directorio seleccionado.');
+            // Vault sin archivos cifrados (p. ej. un cifrado que se interrumpió
+            // antes del primer archivo): se retira el meta para desbloquear
+            // el dispositivo y poder cifrarlo de nuevo.
+            try { await rootHandle.removeEntry(USB_META); } catch {}
+            throw new Error('No se encontraron archivos .c3v; el vault estaba vacío y fue desactivado. Ya puedes cifrar el dispositivo de nuevo.');
         }
 
         // Descifrar archivo por archivo
@@ -1092,27 +1233,27 @@ const USB_UI = {
         // Eliminar metadatos del vault
         try { await rootHandle.removeEntry(USB_META); } catch {}
 
-        hide('usb-loading'); show('usb-btn');
+        hide((p + '-loading')); show((p + '-btn'));
         let msg = `✓ ${done} archivo${done!==1?'s':''} descifrado${done!==1?'s':''}.`;
         if (errors > 0) msg += ` ⚠ ${errors} archivo${errors!==1?'s':''} con errores (contraseña incorrecta o dañados).`;
-        $('usb-result-txt').textContent = msg;
-        show('usb-result');
+        $(p + '-result-txt').textContent = msg;
+        show((p + '-result'));
     },
 
     // Modo alternativo: cifra archivos seleccionados con webkitdirectory y descarga cada .c3v
     async runFallback(files) {
         if (!files || files.length === 0) return;
 
-        const pwd = $('usb-pwd').value;
-        if (!pwd) { setAlert('usb-alert','warn','Ingresa una contraseña antes de seleccionar la carpeta.'); return; }
-        if (this.mode === 'enc' && pwd !== $('usb-pwd2').value) {
-            setAlert('usb-alert','err','Las contraseñas no coinciden.'); return;
+        const pwd = $(p + '-pwd').value;
+        if (!pwd) { setAlert((p + '-alert'),'warn','Ingresa una contraseña antes de seleccionar la carpeta.'); return; }
+        if (this.mode === 'enc' && pwd !== $(p + '-pwd2').value) {
+            setAlert((p + '-alert'),'err','Las contraseñas no coinciden.'); return;
         }
 
-        clearAlert('usb-alert'); hide('usb-result');
-        const section = $('usb-fallback-section');
+        clearAlert((p + '-alert')); hide((p + '-result'));
+        const section = $(p + '-fallback-section');
         section.style.display = 'none';
-        show('usb-loading');
+        show((p + '-loading'));
 
         try {
             if (this.mode === 'enc') {
@@ -1137,7 +1278,7 @@ const USB_UI = {
                     // Pequeña pausa para no saturar el navegador con muchas descargas
                     await new Promise(r=>setTimeout(r,120));
                 }
-                $('usb-result-txt').textContent = `✓ ${done} archivo${done!==1?'s':''} cifrado${done!==1?'s':''} descargados como .c3v. Guárdalos en tu dispositivo.`;
+                $(p + '-result-txt').textContent = `✓ ${done} archivo${done!==1?'s':''} cifrado${done!==1?'s':''} descargados como .c3v. Guárdalos en tu dispositivo.`;
 
             } else {
                 // Modo descifrado fallback
@@ -1161,55 +1302,81 @@ const USB_UI = {
                 }
                 let msg = `✓ ${done} archivo${done!==1?'s':''} descifrado${done!==1?'s':''}.`;
                 if (errors) msg += ` ⚠ ${errors} archivo${errors!==1?'s':''} no pudieron descifrarse.`;
-                $('usb-result-txt').textContent = msg;
+                $(p + '-result-txt').textContent = msg;
             }
         } catch(e) {
-            setAlert('usb-alert','err', e.message || 'Error inesperado.');
+            setAlert((p + '-alert'),'err', e.message || 'Error inesperado.');
             section.style.display = 'flex';
-            hide('usb-loading'); return;
+            hide((p + '-loading')); return;
         } finally {
-            $('usb-pwd').value=''; $('usb-pwd2').value='';
-            $('usb-fallback-input').value='';
+            $(p + '-pwd').value=''; $(p + '-pwd2').value='';
+            $(p + '-fallback-input').value='';
         }
 
-        hide('usb-loading');
+        hide((p + '-loading'));
         section.style.display = 'flex';
-        show('usb-result');
+        show((p + '-result'));
     },
 
     setProgress(done, total, file) {
         if (done < 0) {
-            $('usb-prog-pct').textContent   = '…';
-            $('usb-prog-count').textContent = '';
-            $('usb-prog-fill').style.width  = '0%';
+            $(p + '-prog-pct').textContent   = '…';
+            $(p + '-prog-count').textContent = '';
+            $(p + '-prog-fill').style.width  = '0%';
         } else {
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            $('usb-prog-fill').style.width  = pct + '%';
-            $('usb-prog-pct').textContent   = pct + '%';
-            $('usb-prog-count').textContent = done + ' / ' + total + ' archivos';
+            $(p + '-prog-fill').style.width  = pct + '%';
+            $(p + '-prog-pct').textContent   = pct + '%';
+            $(p + '-prog-count').textContent = done + ' / ' + total + ' archivos';
         }
-        $('usb-loading-msg').textContent = done < 0 ? file : 'Procesando archivos…';
-        $('usb-prog-file').textContent   = file;
+        $(p + '-loading-msg').textContent = done < 0 ? file : 'Procesando archivos…';
+        $(p + '-prog-file').textContent   = file;
     },
 
+    // El bloque LUKS solo existe en la vista USB
     toggleLuks() {
         const btn = $('luks-toggle'), body = $('luks-body');
+        if (!btn || !body) return;
         const open = body.classList.toggle('visible');
         btn.classList.toggle('open', open);
     },
 
     reset() {
-        hide('usb-result'); hide('usb-loading');
-        show('usb-btn'); $('usb-btn').disabled=true;
-        $('usb-pwd').value=''; $('usb-pwd2').value='';
-        clearAlert('usb-alert');
-        $('usb-match').textContent='';
-        hide('usb-mp-row');
+        hide((p + '-result')); hide((p + '-loading'));
+        show((p + '-btn')); $(p + '-btn').disabled=true;
+        $(p + '-pwd').value=''; $(p + '-pwd2').value='';
+        clearAlert((p + '-alert'));
+        $(p + '-match').textContent='';
+        hide((p + '-mp-row'));
         this.selectedMountpoint='';
         document.querySelectorAll('.usb-card,.usb-part').forEach(e=>e.classList.remove('active'));
         this.setMode('enc');
     }
-};
+  }
+}
+
+/* Instancia para dispositivos USB: incluye el panel de dispositivos
+   detectados (solo útil en modo local) y el bloque LUKS. */
+const USB_UI = crearDirUI('usb', {
+    listaDispositivos: true,
+    ent:   'dispositivo',
+    laEnt: 'el dispositivo',
+    det:   'Este',
+    btnEnc: 'Seleccionar directorio USB y cifrar',
+    btnDec: 'Seleccionar directorio USB y descifrar',
+});
+
+/* Instancia para carpetas normales: mismo motor, sin panel de
+   dispositivos — funciona igual en local y en producción, porque el
+   selector de carpetas lo abre el navegador en el equipo del visitante. */
+const FLD_UI = crearDirUI('fld', {
+    listaDispositivos: false,
+    ent:   'carpeta',
+    laEnt: 'la carpeta',
+    det:   'Esta',
+    btnEnc: 'Seleccionar carpeta y cifrar',
+    btnDec: 'Seleccionar carpeta y descifrar',
+});
 
 /* ═══════════════════════════════════════════════════════════════
    MODAL: DIAGRAMA DE CIFRADO
@@ -1291,14 +1458,17 @@ const PwdGen = {
     Enc.init();
     DecFile.init();
 
-    // Cargar vista USB cuando se navega a ella
+    // Preparar las vistas de directorio al entrar en ellas
     const origGo = Nav.go.bind(Nav);
     Nav.go = function(name) {
         origGo(name);
         if (name === 'usb') {
             USB_UI.setMode('enc');
-            USB_UI.loadDevices();
+            USB_UI.loadDevices();   // panel de dispositivos (solo modo local)
             USB_UI.validate();
+        } else if (name === 'folder') {
+            FLD_UI.setMode('enc');
+            FLD_UI.validate();      // la carpeta no necesita panel de dispositivos
         }
     };
 
@@ -1324,10 +1494,14 @@ function bindEvents() {
     // Aviso de seguridad
     on('sec-toggle', 'click', () => UI.toggleSec());
 
-    // Inicio — navegación
+    // Inicio — navegación a las tres funciones
     on('btn-go-encrypt', 'click', () => Nav.go('encrypt'));
-    on('btn-go-decrypt',  'click', () => Nav.go('decrypt-file'));
-    on('btn-go-usb',      'click', () => Nav.go('usb'));
+    on('btn-go-folder',  'click', () => Nav.go('folder'));
+    on('btn-go-usb',     'click', () => Nav.go('usb'));
+
+    // Pestañas de la vista de archivo: cifrar ⇄ descifrar sin volver al inicio
+    on('file-tab-dec', 'click', () => Nav.go('decrypt-file'));
+    on('fdec-tab-enc', 'click', () => Nav.go('encrypt'));
 
     // Vista: cifrar
     on('enc-back',     'click', () => Nav.go('home'));
@@ -1378,4 +1552,20 @@ function bindEvents() {
     // Generador de contraseña — cifrar USB
     on('usb-gen-btn',  'click', () => PwdGen.apply('usb-pwd','usb-pwd2','usb-gen-strip','usb-gen-val', () => USB_UI.onPwd(), () => USB_UI.onPwd2()));
     on('usb-gen-copy', 'click', () => PwdGen.copy('usb-gen-val','usb-gen-copy'));
+
+    // Vista: cifrar / descifrar carpeta — mismos eventos que la de USB,
+    // pero apuntando a la instancia FLD_UI y a los IDs con prefijo fld-
+    on('fld-back',          'click',  () => Nav.go('home'));
+    on('fld-tab-enc',       'click',  () => FLD_UI.setMode('enc'));
+    on('fld-tab-dec',       'click',  () => FLD_UI.setMode('dec'));
+    on('fld-pwd',           'input',  () => FLD_UI.onPwd());
+    on('fld-eye1-btn',      'click',  () => UI.toggleEye('fld-pwd','fld-eye1'));
+    on('fld-pwd2',          'input',  () => FLD_UI.onPwd2());
+    on('fld-eye2-btn',      'click',  () => UI.toggleEye('fld-pwd2','fld-eye2'));
+    on('fld-fallback-btn',  'click',  () => $('fld-fallback-input').click());
+    on('fld-fallback-input','change', function() { FLD_UI.runFallback(this.files); });
+    on('fld-btn',           'click',  () => FLD_UI.run());
+    on('fld-reset-btn',     'click',  () => FLD_UI.reset());
+    on('fld-gen-btn',  'click', () => PwdGen.apply('fld-pwd','fld-pwd2','fld-gen-strip','fld-gen-val', () => FLD_UI.onPwd(), () => FLD_UI.onPwd2()));
+    on('fld-gen-copy', 'click', () => PwdGen.copy('fld-gen-val','fld-gen-copy'));
 }
