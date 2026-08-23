@@ -8,6 +8,21 @@ storage/vault/*
 *.c3v
 .cryptum_meta.bin
 
+# ── Aplicación portátil (portable/) ──────────────────────────────
+# Artefactos que genera Python al ejecutarse
+__pycache__/
+*.py[cod]
+# Ejecutables compilados con PyInstaller: se generan en cada equipo
+# con build/construir.sh o build/construir.bat, no viajan al repositorio
+portable/dist/
+portable/build/tmp/
+portable/build/*.spec
+
+# El ZIP de descarga SÍ se versiona a propósito: así el botón de descarga
+# de la web funciona en cuanto se clona el repositorio, sin pasos extra.
+!public/descargas/cryptum-portable.zip
+!public/descargas/cryptum-portable.zip.sha256
+
 # Configuración local del entorno
 .env
 .env.local

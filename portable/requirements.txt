@@ -1,0 +1,8 @@
+# Cryptum Portable — dependencias
+# Autor: C3r0d4y
+#
+# Una sola libreria externa: cryptography, que aporta AES-256-GCM.
+# PBKDF2-SHA-512 sale de hashlib, que ya viene con Python.
+# La ventana usa tkinter, que tambien viene con Python (en Debian/Ubuntu
+# hay que instalar aparte el paquete del sistema: sudo apt install python3-tk).
+cryptography>=41.0.0

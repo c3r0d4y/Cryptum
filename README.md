@@ -1,4 +1,4 @@
-# Cryptum — v1.3.3
+# Cryptum — v1.4.2
 
 **Autor: C3r0d4y**
 
@@ -6,6 +6,17 @@ Bóveda de cifrado de archivos donde **todo el cifrado ocurre en el navegador**
 (Web Crypto API). El servidor nunca recibe contraseñas ni archivos en claro:
 solo almacena, de forma temporal y opcional, el blob ya cifrado para la función
 de enlace de descarga única.
+
+El repositorio contiene **dos aplicaciones que hablan el mismo formato**:
+
+| Aplicación | Dónde vive | Para qué sirve |
+|---|---|---|
+| **Cryptum** (web) | raíz del repositorio | Cifrar y descifrar desde el navegador, en el servidor de la unidad |
+| **Cryptum Portable** | [`portable/`](portable/) | Abrir ese mismo material en el destino, sin internet y sin instalar nada |
+
+El caso de uso es el despliegue: el material se cifra en el servidor antes de
+salir, viaja en una memoria USB, y en destino se abre con la aplicación portátil
+en cualquier equipo Linux o Windows, sin necesidad de alcanzar el servidor.
 
 > ### 🔗 Versión demo en línea
 > **https://cryptum.ciberdefensa.com.mx/**
@@ -27,6 +38,7 @@ de enlace de descarga única.
 | Descifrar | Por enlace recibido o subiendo un `.c3v` local |
 | Cifrado de carpeta | Cifra o descifra todos los archivos de una carpeta con una sola clave maestra |
 | Cifrado USB | Igual que el de carpeta, más la detección de discos removibles y la guía de cifrado LUKS |
+| App portátil | Enlace en la barra superior que entrega `cryptum-portable.zip` junto a un diagrama de uso de tres pasos |
 
 El cifrado de carpeta y el de USB usan el mismo motor. El selector de carpetas
 lo abre el navegador en el equipo del visitante (File System Access API), así
@@ -46,7 +58,9 @@ cryptum/
 │   ├── controllers/             → HomeController · VaultController (API)
 │   ├── models/Vault.php         → almacenamiento temporal de blobs cifrados
 │   └── views/                   → layouts (header/footer) + home
-└── storage/vault/               → blobs cifrados (.enc) y metadatos (.meta); acceso web denegado
+├── storage/vault/               → blobs cifrados (.enc) y metadatos (.meta); acceso web denegado
+├── public/descargas/            → cryptum-portable.zip + su huella SHA-256
+└── portable/                    → aplicación de escritorio (ver portable/README.md)
 ```
 
 ### API
@@ -109,6 +123,69 @@ creados siguen siendo recuperables con la contraseña.
 Cabeceras aplicadas: CSP estricta (`script-src 'self'`, `form-action 'none'`,
 `base-uri 'none'`), `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
 HSTS cuando hay HTTPS.
+
+## Cryptum Portable
+
+Aplicación de escritorio en Python que descifra y cifra los mismos archivos
+`.c3v`, **sin conexión y sin instalación**. Está en [`portable/`](portable/),
+con su propia documentación.
+
+```
+   EN LA BASE                    TRASLADO                  EN EL DESTINO
+   ──────────                    ────────                  ─────────────
+  Aplicación web              Memoria USB                Cryptum Portable
+   ┌─────────────┐            ┌─────────────┐            ┌─────────────┐
+   │  CIFRAR     │  ───────►  │  orden.c3v  │  ───────►  │  DESCIFRAR  │
+   │  AES-256    │            │  mapa.c3v   │            │  AES-256    │
+   └─────────────┘            └─────────────┘            └─────────────┘
+    contraseña               material ilegible            contraseña
+    del soldado               para cualquiera             del soldado
+
+  La contraseña NUNCA viaja con la USB. Solo la sabe el soldado.
+```
+
+El botón **App portátil** de la barra superior abre ese mismo diagrama y entrega
+el paquete desde `public/descargas/cryptum-portable.zip`, con su huella SHA-256
+publicada al lado para que quien lo descargue pueda verificarlo.
+
+### Por qué publicar el descifrador no debilita el cifrado
+
+Es la pregunta correcta, y la respuesta está en el **principio de Kerckhoffs**:
+la seguridad de Cryptum no está en el algoritmo, está en la contraseña del
+usuario. El algoritmo y el formato ya eran públicos — están en el JavaScript que
+cualquiera descarga al abrir la página. La aplicación portátil **no lleva ninguna
+llave incrustada**: quien la capture obtiene un descifrador que sin la contraseña
+es tan inútil como el archivo cifrado.
+
+### Verificación cruzada
+
+El formato binario está probado **en las dos direcciones**: lo que cifra el
+navegador lo abre Python, y lo que cifra Python lo abre el navegador. La prueba
+no usa una reimplementación del motor — carga el `public/assets/js/app.js` real
+en Node con un DOM simulado y usa sus objetos `Crypto` y `USBCrypto` tal cual
+corren en el navegador.
+
+```bash
+cd portable
+python3 tests/test_compatibilidad.py   # 31 pruebas del formato y el cifrado
+python3 tests/test_gui.py              # 34 pruebas de la ventana gráfica
+python3 tests/test_windows.py          # 60 pruebas de compatibilidad Linux ↔ Windows
+```
+
+> **Al modificar la criptografía de la web hay que reflejarlo en
+> `portable/app/config.py`.** Si las constantes de los dos lados dejan de
+> coincidir, las aplicaciones dejan de entenderse y el material cifrado en el
+> servidor no se podrá abrir en destino.
+
+### Regenerar el paquete de descarga
+
+Después de cualquier cambio en `portable/`:
+
+```bash
+bash portable/build/empaquetar_web.sh    # actualiza el ZIP y su huella
+```
+
+---
 
 ## Requisitos
 
@@ -189,3 +266,4 @@ vulnerabilidad, repórtala de forma privada al autor antes de divulgarla.
 ---
 
 **Cryptum — desarrollado por C3r0d4y.**
+Aplicación web y aplicación portátil, un solo formato de cifrado.

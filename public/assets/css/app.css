@@ -754,6 +754,112 @@
     /* Tres rangos de pantalla: teléfono (base y max-width),
        tablet (min-width: 768px) y escritorio (min-width: 1100px). */
 
+    /* ─── Aplicación portátil: botón del topbar ─────────────── */
+    /* Se distingue del otro enlace con el color dorado de la marca,
+       porque es una acción de descarga, no informativa. */
+    .portable-link { color: var(--gold); border-color: var(--gold-bd); }
+    .portable-link:hover { color: var(--gold); border-color: var(--gold); background: var(--gold-bg); }
+
+    /* ─── Diagrama de uso: los tres momentos de la operación ── */
+    /* En teléfono los pasos se apilan uno debajo de otro; a partir de
+       tablet se acomodan en fila con las flechas girando en horizontal. */
+    .port-flow {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0;
+        margin: 20px 0 18px;
+    }
+    .port-step {
+        background: var(--bg3);
+        border: 1px solid var(--accent-bd);
+        border-radius: var(--r);
+        padding: 16px 14px 14px;
+        position: relative;
+        text-align: center;
+    }
+    .port-step.gold { border-color: var(--gold-bd); }
+    .port-step.ok   { border-color: var(--ok-bd); }
+
+    .port-step-num {
+        position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+        width: 22px; height: 22px; border-radius: 50%;
+        background: var(--bg); border: 1px solid var(--accent-bd);
+        color: var(--accent);
+        font: 700 11px/20px ui-sans-serif, system-ui, sans-serif;
+    }
+    .port-step-num.gold { border-color: var(--gold-bd); color: var(--gold); }
+    .port-step-num.ok   { border-color: var(--ok-bd);   color: var(--ok); }
+
+    .port-step-icon { margin: 4px auto 8px; width: 30px; height: 30px; color: var(--accent); }
+    .port-step-icon.gold { color: var(--gold); }
+    .port-step-icon.ok   { color: var(--ok); }
+    .port-step-icon svg  { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+    .port-step-title { font: 700 13px/1.3 ui-sans-serif, system-ui, sans-serif; color: var(--text); }
+    .port-step-place {
+        font: 600 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
+        margin: 3px 0 7px;
+    }
+    .port-step-desc { font: 12px/1.5 ui-sans-serif, system-ui, sans-serif; color: var(--muted); }
+    .port-step-desc code { color: var(--gold); font: inherit; }
+
+    /* Flecha entre pasos: vertical en teléfono, horizontal desde tablet */
+    .port-arrow { display: flex; align-items: center; justify-content: center; padding: 7px 0; }
+    .port-arrow span {
+        display: block; width: 1px; height: 16px;
+        background: linear-gradient(180deg, var(--line3), transparent);
+        position: relative;
+    }
+    .port-arrow span::after {
+        content: ''; position: absolute; bottom: -1px; left: -3px;
+        border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+        border-top: 5px solid var(--line3);
+    }
+
+    /* ─── Advertencia de la operación ────────────────────────── */
+    .port-warn {
+        display: flex; gap: 10px; align-items: flex-start;
+        background: var(--warn-bg); border: 1px solid var(--warn-bd);
+        border-radius: var(--r); padding: 12px 14px;
+        font: 12px/1.55 ui-sans-serif, system-ui, sans-serif; color: var(--text);
+    }
+    .port-warn svg {
+        width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--warn);
+        fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* ─── Botón de descarga ──────────────────────────────────── */
+    .port-download {
+        display: flex; align-items: center; gap: 13px;
+        background: var(--gold-bg); border: 1px solid var(--gold-bd);
+        border-radius: var(--r); padding: 15px 17px;
+        text-decoration: none; transition: border-color .15s, background .15s;
+    }
+    .port-download:hover { border-color: var(--gold); background: rgba(184,147,90,.12); }
+    .port-download svg {
+        width: 24px; height: 24px; flex-shrink: 0; color: var(--gold);
+        fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .port-download strong { display: block; font: 700 14px/1.3 ui-sans-serif, system-ui, sans-serif; color: var(--text); }
+    .port-download em     { display: block; font: 400 11.5px/1.4 ui-sans-serif, system-ui, sans-serif; color: var(--muted); font-style: normal; margin-top: 2px; }
+
+    /* ─── Tarjetas de plataforma y garantías ─────────────────── */
+    .port-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
+    .port-card {
+        background: var(--bg3); border: 1px solid var(--line2);
+        border-radius: var(--r); padding: 11px 13px;
+    }
+    .port-card-title { font: 700 12px/1.3 ui-sans-serif, system-ui, sans-serif; color: var(--text); margin-bottom: 3px; }
+    .port-card-desc  { font: 11.5px/1.5 ui-sans-serif, system-ui, sans-serif; color: var(--muted); }
+    .port-card-desc code { color: var(--accent); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .port-hash {
+        margin-top: 12px; font: 11px/1.6 ui-sans-serif, system-ui, sans-serif; color: var(--muted);
+    }
+    .port-hash code { color: var(--accent); font: 10.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .port-hash a    { color: var(--accent); }
+
     /* Teléfono compacto */
     @media (max-width: 520px) {
         .output-opts  { grid-template-columns: 1fr; }
@@ -761,6 +867,7 @@
         .share-grid   { grid-template-columns: repeat(3, 1fr); }
         .topbar-right .topbar-ver { display: none; }
         .diag-link span { display: none; }
+        .port-download { padding: 13px 14px; gap: 10px; }
     }
     /* Teléfono muy pequeño */
     @media (max-width: 360px) {
@@ -773,6 +880,15 @@
         .sec-notice { max-width: 640px; }
         .diag-modal { max-width: 680px; }
         main        { padding: 36px 24px 20px; }
+        /* Los tres momentos pasan a leerse en horizontal, de izquierda
+           a derecha, que es como se recorre la operación real. */
+        .port-flow  { grid-template-columns: 1fr auto 1fr auto 1fr; align-items: stretch; }
+        .port-arrow { padding: 0 6px; }
+        .port-arrow span { width: 22px; height: 1px; background: linear-gradient(90deg, var(--line3), transparent); }
+        .port-arrow span::after { bottom: -3.5px; left: auto; right: -1px;
+            border-left: 5px solid var(--line3); border-right: none;
+            border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; }
+        .port-grid  { grid-template-columns: 1fr 1fr; }
     }
     /* Escritorio: más aire vertical y contenido aún más amplio */
     @media (min-width: 1100px) {
@@ -780,6 +896,8 @@
         .sec-notice { max-width: 760px; }
         .hero       { max-width: 620px; }
         main        { padding-top: 48px; }
+        .port-step  { padding: 20px 16px 16px; }
+        .port-step-icon { width: 34px; height: 34px; }
     }
 
     /* El foco se mueve a <main> por accesibilidad al cambiar de vista;

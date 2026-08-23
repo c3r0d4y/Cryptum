@@ -1381,21 +1381,35 @@ const FLD_UI = crearDirUI('fld', {
 /* ═══════════════════════════════════════════════════════════════
    MODAL: DIAGRAMA DE CIFRADO
    ═══════════════════════════════════════════════════════════════ */
+// Un solo objeto atiende los dos modales (diagrama de cifrado y app
+// portátil). Recibe el id del overlay que le toca abrir o cerrar.
 const DiagModal = {
-    open() {
-        const o = $('diag-overlay');
+    open(id = 'diag-overlay') {
+        const o = $(id);
+        if (!o) return;
         o.classList.add('open');
         document.body.style.overflow = 'hidden';
         // Enfocar para accesibilidad (cierre con Escape)
         o.focus?.();
     },
-    close() {
-        $('diag-overlay').classList.remove('open');
-        document.body.style.overflow = '';
+    close(id = 'diag-overlay') {
+        const o = $(id);
+        if (o) o.classList.remove('open');
+        // El desplazamiento de la página vuelve solo si ya no queda
+        // ningún modal abierto.
+        if (!document.querySelector('.diag-overlay.open')) {
+            document.body.style.overflow = '';
+        }
     },
-    onOverlayClick(e) {
+    onOverlayClick(e, id) {
         // Cerrar solo si se hace clic en el fondo oscuro, no en el modal
-        if (e.target === $('diag-overlay')) this.close();
+        if (e.target === $(id)) this.close(id);
+    },
+    // Cierra el que esté abierto. Lo usa la tecla Escape.
+    closeAll() {
+        document.querySelectorAll('.diag-overlay.open')
+            .forEach(o => o.classList.remove('open'));
+        document.body.style.overflow = '';
     }
 };
 // Cierre con tecla Escape
@@ -1487,9 +1501,19 @@ function bindEvents() {
     const on = (id, ev, fn) => { const e = $(id); if (e) e.addEventListener(ev, fn); };
 
     // Modal de diagrama
-    on('diag-open-btn',  'click', () => DiagModal.open());
-    on('diag-close-btn', 'click', () => DiagModal.close());
-    on('diag-overlay',   'click', e  => DiagModal.onOverlayClick(e));
+    on('diag-open-btn',  'click', () => DiagModal.open('diag-overlay'));
+    on('diag-close-btn', 'click', () => DiagModal.close('diag-overlay'));
+    on('diag-overlay',   'click', e  => DiagModal.onOverlayClick(e, 'diag-overlay'));
+
+    // Modal de la aplicación portátil (descarga + diagrama de uso)
+    on('portable-open-btn',  'click', () => DiagModal.open('portable-overlay'));
+    on('portable-close-btn', 'click', () => DiagModal.close('portable-overlay'));
+    on('portable-overlay',   'click', e  => DiagModal.onOverlayClick(e, 'portable-overlay'));
+
+    // La tecla Escape cierra cualquier modal abierto
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') DiagModal.closeAll();
+    });
 
     // Aviso de seguridad
     on('sec-toggle', 'click', () => UI.toggleSec());

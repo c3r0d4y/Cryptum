@@ -118,6 +118,105 @@
 </div>
 
 <!-- ══════════════════════════════════════════════════════════
+     MODAL: APLICACIÓN PORTÁTIL (descarga + diagrama de uso)
+     Pensado para el personal que se despliega y no tendrá acceso
+     al servidor en su destino.
+     ══════════════════════════════════════════════════════════ -->
+<div class="diag-overlay" id="portable-overlay" role="dialog" aria-modal="true" aria-label="Aplicación portátil Cryptum">
+    <div class="diag-modal">
+
+        <button class="diag-close" id="portable-close-btn" aria-label="Cerrar">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        <div class="diag-title">Cryptum Portable — para el despliegue</div>
+        <div class="diag-sub">Cifra aquí antes de salir. Descifra allá sin internet, sin servidor y sin instalar nada.</div>
+
+        <!-- ── Diagrama de uso: los tres momentos de la operación ── -->
+        <div class="port-flow">
+
+            <div class="port-step">
+                <div class="port-step-num">1</div>
+                <div class="port-step-icon">
+                    <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                </div>
+                <div class="port-step-title">En la base</div>
+                <div class="port-step-place">Aplicación web Cryptum</div>
+                <div class="port-step-desc">Cifras tu archivo o tu USB completa con tu contraseña. El material queda ilegible.</div>
+            </div>
+
+            <div class="port-arrow" aria-hidden="true"><span></span></div>
+
+            <div class="port-step gold">
+                <div class="port-step-num gold">2</div>
+                <div class="port-step-icon gold">
+                    <svg viewBox="0 0 24 24"><path d="M10 2h4v8h4l-6 6-6-6h4z"/><path d="M3 20h18"/><rect x="7" y="16" width="10" height="4" rx="1"/></svg>
+                </div>
+                <div class="port-step-title">En el traslado</div>
+                <div class="port-step-place">Memoria USB</div>
+                <div class="port-step-desc">Solo viajan archivos <code>.c3v</code>. La contraseña no va en la USB: la llevas tú.</div>
+            </div>
+
+            <div class="port-arrow" aria-hidden="true"><span></span></div>
+
+            <div class="port-step ok">
+                <div class="port-step-num ok">3</div>
+                <div class="port-step-icon ok">
+                    <svg viewBox="0 0 24 24"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+                <div class="port-step-title">En el destino</div>
+                <div class="port-step-place">Cryptum Portable</div>
+                <div class="port-step-desc">Abres el programa en Linux o Windows, escribes tu contraseña y recuperas todo.</div>
+            </div>
+
+        </div>
+
+        <div class="port-warn">
+            <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Si la USB se pierde o es capturada, el contenido es indescifrable sin tu contraseña. Si olvidas la contraseña, nadie —ni el servidor— puede recuperar el material.</span>
+        </div>
+
+        <div class="diag-divider"><span>Descarga</span></div>
+
+        <!-- El enlace apunta a un archivo físico: Apache lo sirve directo -->
+        <a class="port-download" href="<?= rtrim(BASE_URL, '/') ?>/descargas/cryptum-portable.zip" download>
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>
+                <strong>Descargar Cryptum Portable</strong>
+                <em>Linux y Windows · funciona sin internet</em>
+            </span>
+        </a>
+
+        <div class="port-grid">
+            <div class="port-card">
+                <div class="port-card-title">Windows</div>
+                <div class="port-card-desc">Descomprime y ejecuta <code>cryptum.exe</code>. Sin instalación ni permisos de administrador.</div>
+            </div>
+            <div class="port-card">
+                <div class="port-card-title">Linux</div>
+                <div class="port-card-desc">Descomprime y ejecuta <code>./cryptum</code>. También corre desde la propia USB.</div>
+            </div>
+            <div class="port-card">
+                <div class="port-card-title">Mismo cifrado</div>
+                <div class="port-card-desc">AES-256-GCM y PBKDF2-SHA-512 con 210 000 iteraciones, idéntico a esta página.</div>
+            </div>
+            <div class="port-card">
+                <div class="port-card-title">Sin secretos dentro</div>
+                <div class="port-card-desc">El programa no lleva ninguna llave. Sin tu contraseña no sirve de nada a quien lo tenga.</div>
+            </div>
+        </div>
+
+        <div class="port-hash">
+            Verifica la descarga antes de usarla:
+            <code>sha256sum cryptum-portable.zip</code>
+            — compara el resultado con el archivo
+            <a href="<?= rtrim(BASE_URL, '/') ?>/descargas/cryptum-portable.zip.sha256">.sha256</a> publicado junto al paquete.
+        </div>
+
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      AVISO DE SEGURIDAD
      ══════════════════════════════════════════════════════════ -->
 <div class="sec-notice-wrap">

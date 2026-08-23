@@ -26,6 +26,13 @@
             <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M17.5 14v6M14.5 17h6"/></svg>
             <span>Diagrama de cifrado</span>
         </button>
+        <!-- Acceso a la aplicación portátil: el personal que se despliega la
+             descarga desde aquí antes de salir, para poder abrir su material
+             en destino sin conexión al servidor. -->
+        <button class="diag-link portable-link" id="portable-open-btn">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>App portátil</span>
+        </button>
         <span class="pill blue"><span class="dot"></span>CIFRADO LOCAL</span>
         <span class="topbar-ver">CRYPTUM v1.0</span>
     </div>
