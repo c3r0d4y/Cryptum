@@ -1,0 +1,191 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Cryptum Portable — Construcción automática del ejecutable
+#  Autor: C3r0d4y
+#
+#  Compila la aplicación portátil en Windows y en Linux, y publica los dos
+#  ejecutables listos para descargar. Así no hace falta tener una máquina
+#  Windows a la mano para generar el cryptum.exe que usa el personal
+#  desplegado.
+#
+#  Se dispara solo al tocar la carpeta portable/, y también a mano desde la
+#  pestaña "Actions" del repositorio.
+# ─────────────────────────────────────────────────────────────────────
+name: Construir Cryptum Portable
+
+on:
+  workflow_dispatch:          # Botón manual en la pestaña Actions
+  push:
+    branches: [main]
+    paths:
+      - 'portable/**'
+      - '.github/workflows/construir-portable.yml'
+
+jobs:
+
+  # ═══════════════════════════════════════════════════════════════
+  #  WINDOWS — produce cryptum.exe
+  # ═══════════════════════════════════════════════════════════════
+  windows:
+    name: "Windows: pruebas y ejecutable"
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias
+        working-directory: portable
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Pruebas del formato y el cifrado
+        working-directory: portable
+        run: python tests/test_compatibilidad.py
+
+      - name: Pruebas de compatibilidad con Windows
+        working-directory: portable
+        run: python tests/test_windows.py
+
+      # Los runners de Windows sí tienen sesión gráfica, así que la ventana
+      # se puede abrir de verdad para probarla.
+      - name: Pruebas de la ventana gráfica
+        working-directory: portable
+        run: python tests/test_gui.py
+
+      - name: Compilar cryptum.exe
+        working-directory: portable
+        run: |
+          python -m PyInstaller --onefile --name cryptum --windowed --clean --noconfirm `
+            --hidden-import cryptography.hazmat.primitives.ciphers.aead `
+            --exclude-module numpy --exclude-module PIL --exclude-module matplotlib `
+            main.py
+
+      # Se comprueba que el ejecutable recién creado realmente descifra un
+      # archivo. Compilar sin errores no garantiza que funcione: PyInstaller
+      # puede dejar fuera una dependencia y el fallo solo aparece al usarlo.
+      - name: Comprobar que el ejecutable funciona
+        working-directory: portable
+        shell: pwsh
+        run: |
+          python -c "import sys; sys.path.insert(0,'.'); from app.models import crypto_engine; open('prueba.txt.c3v','wb').write(crypto_engine.cifrar_archivo(b'ORDEN DE OPERACIONES', 'prueba.txt', 'ClaveDePrueba2026'))"
+          "ClaveDePrueba2026`n" | .\dist\cryptum.exe -d prueba.txt.c3v
+          if (-not (Test-Path prueba.txt)) { throw "El ejecutable no recupero el archivo" }
+          $texto = Get-Content prueba.txt -Raw
+          if ($texto -notmatch "ORDEN DE OPERACIONES") { throw "El contenido no coincide" }
+          Write-Host "El ejecutable descifro correctamente: $texto"
+
+      - name: Calcular la huella SHA-256
+        working-directory: portable
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash dist\cryptum.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  cryptum.exe" | Out-File -Encoding ascii dist\cryptum.exe.sha256
+          Write-Host "Huella: $h"
+
+      - name: Publicar el ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptum-windows
+          path: |
+            portable/dist/cryptum.exe
+            portable/dist/cryptum.exe.sha256
+          retention-days: 90
+
+  # ═══════════════════════════════════════════════════════════════
+  #  LINUX — produce el binario cryptum
+  # ═══════════════════════════════════════════════════════════════
+  linux:
+    name: "Linux: pruebas y ejecutable"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # tkinter no viene con el Python de Debian y Ubuntu: hay que instalarlo
+      # aparte. xvfb crea una pantalla virtual para poder abrir la ventana.
+      - name: Instalar la librería gráfica y la pantalla virtual
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb
+
+      - name: Instalar dependencias
+        working-directory: portable
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Pruebas del formato y el cifrado
+        working-directory: portable
+        run: python tests/test_compatibilidad.py
+
+      - name: Pruebas de compatibilidad con Windows
+        working-directory: portable
+        run: python tests/test_windows.py
+
+      - name: Pruebas de la ventana gráfica
+        working-directory: portable
+        run: xvfb-run -a python tests/test_gui.py
+
+      # Comprueba que lo cifrado por el navegador se abre con Python. Se usa
+      # el app.js real de la aplicación web, no una copia.
+      - name: Prueba cruzada contra el motor real de la web
+        run: |
+          node -e "
+            const vm=require('vm'), fs=require('fs'), {webcrypto}=require('crypto');
+            const src=fs.readFileSync('public/assets/js/app.js','utf8');
+            const el=()=>new Proxy(function(){},{get:(t,p)=>p==='dataset'?{}:(p==='style'?{}:(p==='value'?'':el())),set:()=>true,apply:()=>el()});
+            const doc={body:{dataset:{}},getElementById:()=>null,querySelector:()=>null,querySelectorAll:()=>[],addEventListener:()=>{},createElement:()=>el()};
+            const sb={crypto:webcrypto,document:doc,window:{addEventListener:()=>{}},TextEncoder,TextDecoder,DataView,Uint8Array,ArrayBuffer,console,navigator:{},fetch:()=>{},setTimeout,clearTimeout,setInterval,clearInterval,location:{href:''},Blob:class{},URL:{createObjectURL:()=>''},alert:()=>{}};
+            vm.createContext(sb);
+            vm.runInContext(src+';globalThis.__C=Crypto;', sb);
+            sb.__C.encrypt(new TextEncoder().encode('material clasificado').buffer,'orden.pdf','ClaveCruzada2026')
+              .then(b=>{fs.writeFileSync('/tmp/web.c3v',Buffer.from(b));console.log('cifrado por el navegador, bytes:',b.length);});
+          "
+          cd portable && python -c "
+          import sys; sys.path.insert(0,'.')
+          from app.models import crypto_engine
+          n, d = crypto_engine.descifrar_archivo(open('/tmp/web.c3v','rb').read(), 'ClaveCruzada2026')
+          assert n == 'orden.pdf', n
+          assert d == 'material clasificado'.encode(), d
+          print('Python abrio el archivo del navegador:', n, '->', d.decode())
+          "
+
+      - name: Compilar el binario de Linux
+        working-directory: portable
+        run: |
+          python -m PyInstaller --onefile --name cryptum --windowed --clean --noconfirm \
+            --hidden-import cryptography.hazmat.primitives.ciphers.aead \
+            --exclude-module numpy --exclude-module PIL --exclude-module matplotlib \
+            main.py
+
+      - name: Comprobar que el ejecutable funciona
+        working-directory: portable
+        run: |
+          python -c "import sys; sys.path.insert(0,'.'); from app.models import crypto_engine; open('prueba.txt.c3v','wb').write(crypto_engine.cifrar_archivo(b'ORDEN DE OPERACIONES', 'prueba.txt', 'ClaveDePrueba2026'))"
+          echo "ClaveDePrueba2026" | ./dist/cryptum -d prueba.txt.c3v
+          grep -q "ORDEN DE OPERACIONES" prueba.txt
+          echo "El ejecutable descifro correctamente."
+
+      - name: Calcular la huella SHA-256
+        working-directory: portable
+        run: |
+          cd dist && sha256sum cryptum > cryptum.sha256 && cat cryptum.sha256
+
+      - name: Publicar el ejecutable
+        uses: actions/upload-artifact@v4
+        with:
+          name: cryptum-linux
+          path: |
+            portable/dist/cryptum
+            portable/dist/cryptum.sha256
+          retention-days: 90

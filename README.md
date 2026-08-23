@@ -1,4 +1,4 @@
-# Cryptum — v1.4.2
+# Cryptum — v1.4.3
 
 **Autor: C3r0d4y**
 
@@ -176,6 +176,17 @@ python3 tests/test_windows.py          # 60 pruebas de compatibilidad Linux ↔ 
 > `portable/app/config.py`.** Si las constantes de los dos lados dejan de
 > coincidir, las aplicaciones dejan de entenderse y el material cifrado en el
 > servidor no se podrá abrir en destino.
+
+### Ejecutables compilados
+
+La carpeta `.github/workflows/` define una construcción automática que compila
+la aplicación portátil en máquinas Windows y Linux reales, ejecuta las 125
+pruebas y comprueba que el ejecutable resultante descifra un archivo antes de
+publicarlo. Se descarga desde la pestaña **Actions** → ejecución más reciente de
+*Construir Cryptum Portable* → **Artifacts**.
+
+Gracias a eso **no hace falta una máquina Windows con Python** para obtener el
+`cryptum.exe` que se entrega al personal desplegado.
 
 ### Regenerar el paquete de descarga
 
