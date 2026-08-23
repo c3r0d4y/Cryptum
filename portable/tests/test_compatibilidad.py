@@ -235,6 +235,56 @@ finally:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  7. La consola acepta la contrasena por la entrada estandar
+# ═══════════════════════════════════════════════════════════════════════
+# Importa para poder usar el programa dentro de un script, y sobre todo en
+# Windows: alli getpass lee del teclado de la consola e ignora las tuberias,
+# asi que sin este manejo el programa se quedaria colgado esperando una tecla.
+print("\n[7] La consola acepta la contrasena por la entrada estandar")
+
+import subprocess
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+tmp = tempfile.mkdtemp(prefix="cryptum_pipe_")
+try:
+    origen = os.path.join(tmp, "orden.txt")
+    with open(origen, "wb") as f:
+        f.write(b"ORDEN POR ENTRADA ESTANDAR")
+
+    def correr(args, entrada):
+        """Ejecuta el programa como lo haria un script, con tiempo limite."""
+        return subprocess.run(
+            [sys.executable, os.path.join(RAIZ, "main.py")] + args,
+            input=entrada, capture_output=True, text=True, timeout=180,
+            cwd=RAIZ,
+        )
+
+    r = correr(["-c", origen, "--borrar"], "ClavePorTuberia2026\n")
+    verificar("Cifra con la contrasena recibida por la tuberia",
+              r.returncode == 0 and os.path.exists(origen + ".c3v"), r.stdout + r.stderr)
+
+    r = correr(["-d", origen + ".c3v"], "ClavePorTuberia2026\n")
+    verificar("Descifra con la contrasena recibida por la tuberia",
+              r.returncode == 0 and os.path.exists(origen), r.stdout + r.stderr)
+    verificar("El contenido volvio intacto",
+              open(origen, "rb").read() == b"ORDEN POR ENTRADA ESTANDAR")
+
+    r = correr(["-d", origen + ".c3v"], "")
+    verificar("Avisa si no llega ninguna contrasena",
+              r.returncode != 0 and "entrada estandar" in r.stdout, r.stdout)
+
+    r = correr(["-d", origen + ".c3v"], "ClaveEquivocada2026\n")
+    verificar("Rechaza la contrasena incorrecta sin quedarse colgado",
+              r.returncode != 0 and "Contrasena incorrecta" in r.stdout, r.stdout)
+
+except subprocess.TimeoutExpired:
+    verificar("El programa no se queda colgado esperando el teclado", False,
+              "se agoto el tiempo limite")
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Resultado final
 # ═══════════════════════════════════════════════════════════════════════
 print()

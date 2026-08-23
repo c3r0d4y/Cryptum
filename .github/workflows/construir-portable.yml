@@ -28,6 +28,7 @@ jobs:
   windows:
     name: "Windows: pruebas y ejecutable"
     runs-on: windows-latest
+    timeout-minutes: 25
 
     steps:
       - name: Descargar el código
@@ -137,6 +138,7 @@ jobs:
   linux:
     name: "Linux: pruebas y ejecutable"
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Descargar el código

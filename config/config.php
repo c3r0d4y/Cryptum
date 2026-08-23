@@ -12,7 +12,7 @@ if (!defined('APP_NAME')) {
     define('APP_NAME',    'Cryptum');
     // Versión de la app: también se usa para invalidar la caché de CSS/JS
     // (los assets se sirven con ?v=APP_VERSION; al cambiarla el navegador recarga).
-    define('APP_VERSION', '1.4.3');
+    define('APP_VERSION', '1.4.4');
     // Para producción en raíz del dominio usar APP_BASE_URL="" en el entorno.
     // Se usa !== false para distinguir entre "no definida" (false) y "definida vacía" ("").
     $envBase = getenv('APP_BASE_URL');

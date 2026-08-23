@@ -29,19 +29,53 @@ def _banner() -> str:
     )
 
 
+def _leer_password(mensaje: str) -> str:
+    """
+    Lee una contrasena sin mostrarla en pantalla.
+
+    Cuando el programa se usa a mano, la contrasena se teclea y no aparece
+    en la pantalla. Cuando se usa dentro de un script, llega por la entrada
+    estandar y se lee de ahi.
+
+    Ese segundo caso necesita atencion especial en Windows: alli getpass lee
+    directamente del teclado de la consola e ignora lo que llegue por una
+    tuberia, asi que el programa se quedaria esperando para siempre una tecla
+    que nadie va a pulsar. Por eso se comprueba primero si la entrada viene
+    de una terminal o no.
+    """
+    if sys.stdin is not None and sys.stdin.isatty():
+        return getpass.getpass(mensaje)
+
+    # La entrada no es una terminal: viene de un script o de una tuberia.
+    # No hay pantalla que proteger, asi que se lee de forma directa.
+    linea = sys.stdin.readline()
+    if not linea:
+        print("  ! No se recibio ninguna contrasena por la entrada estandar.")
+        sys.exit(1)
+    return linea.rstrip("\r\n")
+
+
 def _pedir_password(confirmar: bool) -> str:
     """
     Pide la contrasena sin mostrarla en pantalla.
     Cuando se va a cifrar la pide dos veces: una contrasena mal tecleada
     al cifrar significa perder el archivo para siempre.
     """
-    pwd = getpass.getpass("  Contrasena: ")
+    pwd = _leer_password("  Contrasena: ")
     if not pwd:
         print("  ! La contrasena no puede estar vacia.")
         sys.exit(1)
 
     if confirmar:
-        pwd2 = getpass.getpass("  Repite la contrasena: ")
+        # Al leer de un script no tiene sentido pedir la confirmacion: la
+        # contrasena no se tecleo, asi que no puede haber un error de tecleo.
+        if sys.stdin is None or not sys.stdin.isatty():
+            if len(pwd) < 8:
+                print("  ! Usa al menos 8 caracteres. Mientras mas larga, mejor.")
+                sys.exit(1)
+            return pwd
+
+        pwd2 = _leer_password("  Repite la contrasena: ")
         if pwd != pwd2:
             print("  ! Las contrasenas no coinciden.")
             sys.exit(1)

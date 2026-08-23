@@ -1,4 +1,4 @@
-# Cryptum — v1.4.3
+# Cryptum — v1.4.4
 
 **Autor: C3r0d4y**
 
