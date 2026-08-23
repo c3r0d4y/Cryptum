@@ -109,9 +109,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM ── 3. Compilar en un solo archivo ──────────────────────────────────
-REM  --windowed evita que se abra una consola negra detras de la ventana
-echo   [3/4] Compilando...
+REM ── 4. Compilar los dos ejecutables ─────────────────────────────────
+REM  Se generan DOS archivos, igual que hace el propio Python con python.exe
+REM  y pythonw.exe:
+REM
+REM    cryptum.exe      ventana grafica, sin consola negra detras. El de
+REM                     doble clic (--windowed).
+REM    cryptum-cli.exe  version de consola. Hace falta porque un ejecutable
+REM                     compilado con --windowed NO tiene entrada ni salida
+REM                     de texto en Windows: la linea de comandos no funciona
+REM                     con el, ni siquiera para pedir la contrasena.
+echo   [3/5] Compilando la version de ventana...
 "%PYV%" -m PyInstaller ^
     --onefile ^
     --name cryptum ^
@@ -137,14 +145,36 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo   [4/5] Compilando la version de consola...
+"%PYV%" -m PyInstaller ^
+    --onefile ^
+    --name cryptum-cli ^
+    --console ^
+    --noconfirm ^
+    --distpath "%CD%\dist" ^
+    --workpath "%CD%\build\tmp" ^
+    --specpath "%CD%\build" ^
+    --hidden-import cryptography.hazmat.primitives.ciphers.aead ^
+    --exclude-module numpy ^
+    --exclude-module PIL ^
+    --exclude-module matplotlib ^
+    main.py
+if errorlevel 1 (
+    echo.
+    echo   ERROR: fallo la compilacion de la version de consola.
+    echo.
+    pause
+    exit /b 1
+)
+
 REM ── 5. Comprobar que el ejecutable sirve ────────────────────────────
 REM  Compilar sin errores no garantiza que funcione: PyInstaller puede dejar
 REM  fuera una dependencia y el fallo solo aparece al usarlo. Se cifra un
 REM  archivo de prueba y se comprueba que el binario recien creado lo abre.
-echo   [4/4] Comprobando el ejecutable...
+echo   [5/5] Comprobando los ejecutables...
 
 "%PYV%" -c "import sys; sys.path.insert(0,'.'); from app.models import crypto_engine; open('build\\prueba.txt.c3v','wb').write(crypto_engine.cifrar_archivo(b'PRUEBA DE CONSTRUCCION','prueba.txt','ClaveDePrueba2026'))"
-echo ClaveDePrueba2026| "%CD%\dist\cryptum.exe" -d "build\prueba.txt.c3v" >nul
+echo ClaveDePrueba2026| "%CD%\dist\cryptum-cli.exe" -d "build\prueba.txt.c3v" >nul
 
 findstr /c:"PRUEBA DE CONSTRUCCION" "build\prueba.txt" >nul 2>&1
 if errorlevel 1 (
@@ -161,12 +191,15 @@ del "build\prueba.txt" "build\prueba.txt.c3v" 2>nul
 REM ── 6. Huella del binario, para poder verificarlo despues ───────────
 echo   Calculando huella SHA-256...
 certutil -hashfile "%CD%\dist\cryptum.exe" SHA256 > "%CD%\dist\cryptum.exe.sha256"
+certutil -hashfile "%CD%\dist\cryptum-cli.exe" SHA256 > "%CD%\dist\cryptum-cli.exe.sha256"
 
 echo.
-echo   Listo:  %CD%\dist\cryptum.exe
+echo   Listo:
+echo     %CD%\dist\cryptum.exe        ventana grafica (doble clic)
+echo     %CD%\dist\cryptum-cli.exe    linea de comandos
 echo.
 echo   Comprobado: el ejecutable descifra correctamente.
-echo   Copia ese archivo a la memoria USB del soldado. No necesita
+echo   Copia los dos a la memoria USB del soldado. No necesitan
 echo   instalacion ni permisos de administrador para ejecutarse.
 echo.
 pause

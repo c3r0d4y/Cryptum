@@ -54,12 +54,20 @@ el servidor.
 
 No requiere Python ni permisos de administrador. Se copia y se ejecuta.
 
-| Sistema | Archivo | Cómo se abre |
+| Sistema | Archivo | Para qué |
 |---|---|---|
-| Windows | `cryptum.exe` | Doble clic |
-| Linux | `cryptum` | `chmod +x cryptum` y luego `./cryptum` |
+| Windows | `cryptum.exe` | Ventana gráfica — doble clic |
+| Windows | `cryptum-cli.exe` | Línea de comandos |
+| Linux | `cryptum` | Las dos cosas: doble clic abre la ventana, y desde la terminal acepta argumentos |
 
 Puede correr desde la propia memoria USB.
+
+**Por qué Windows lleva dos archivos.** Un ejecutable compilado para mostrar
+ventana no tiene entrada ni salida de texto en Windows: desde la consola no
+funcionaría ni para pedir la contraseña. Por eso se entregan los dos, igual que
+el propio Python reparte `python.exe` y `pythonw.exe`. Al soldado que solo va a
+usar la ventana le basta con `cryptum.exe`. En Linux no existe esa limitación y
+un solo archivo sirve para ambas cosas.
 
 **De dónde sale ese ejecutable.** Se compila solo en GitHub, en máquinas Windows
 y Linux de verdad. Para descargarlo: pestaña **Actions** del repositorio →

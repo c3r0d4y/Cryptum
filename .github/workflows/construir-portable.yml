@@ -58,7 +58,17 @@ jobs:
         working-directory: portable
         run: python tests/test_gui.py
 
-      - name: Compilar cryptum.exe
+      # En Windows se generan DOS ejecutables, igual que hace el propio Python
+      # con python.exe y pythonw.exe:
+      #
+      #   cryptum.exe      ventana grafica, sin consola detras (--windowed).
+      #                    Es el de doble clic.
+      #   cryptum-cli.exe  version de consola (--console). Hace falta porque un
+      #                    ejecutable compilado con --windowed NO tiene entrada
+      #                    ni salida de texto en Windows: la linea de comandos
+      #                    simplemente no funciona con el, ni siquiera para
+      #                    pedir la contrasena.
+      - name: Compilar cryptum.exe (ventana)
         working-directory: portable
         run: |
           python -m PyInstaller --onefile --name cryptum --windowed --clean --noconfirm `
@@ -66,27 +76,49 @@ jobs:
             --exclude-module numpy --exclude-module PIL --exclude-module matplotlib `
             main.py
 
+      - name: Compilar cryptum-cli.exe (consola)
+        working-directory: portable
+        run: |
+          python -m PyInstaller --onefile --name cryptum-cli --console --noconfirm `
+            --hidden-import cryptography.hazmat.primitives.ciphers.aead `
+            --exclude-module numpy --exclude-module PIL --exclude-module matplotlib `
+            main.py
+
       # Se comprueba que el ejecutable recién creado realmente descifra un
       # archivo. Compilar sin errores no garantiza que funcione: PyInstaller
       # puede dejar fuera una dependencia y el fallo solo aparece al usarlo.
-      - name: Comprobar que el ejecutable funciona
+      - name: Comprobar que los ejecutables funcionan
         working-directory: portable
         shell: pwsh
         run: |
+          # Se cifra un archivo de prueba con el codigo fuente...
           python -c "import sys; sys.path.insert(0,'.'); from app.models import crypto_engine; open('prueba.txt.c3v','wb').write(crypto_engine.cifrar_archivo(b'ORDEN DE OPERACIONES', 'prueba.txt', 'ClaveDePrueba2026'))"
-          "ClaveDePrueba2026`n" | .\dist\cryptum.exe -d prueba.txt.c3v
-          if (-not (Test-Path prueba.txt)) { throw "El ejecutable no recupero el archivo" }
+
+          # ...y se comprueba que el ejecutable de consola lo abre.
+          "ClaveDePrueba2026`n" | .\dist\cryptum-cli.exe -d prueba.txt.c3v
+          if (-not (Test-Path prueba.txt)) { throw "cryptum-cli.exe no recupero el archivo" }
           $texto = Get-Content prueba.txt -Raw
           if ($texto -notmatch "ORDEN DE OPERACIONES") { throw "El contenido no coincide" }
-          Write-Host "El ejecutable descifro correctamente: $texto"
+          Write-Host "cryptum-cli.exe descifro correctamente: $texto"
+
+          # El de ventana no se puede manejar desde la consola por diseno, asi
+          # que se comprueba que existe y que arranca sin caerse de inmediato.
+          if (-not (Test-Path dist\cryptum.exe)) { throw "No se genero cryptum.exe" }
+          $p = Start-Process -FilePath dist\cryptum.exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { throw "cryptum.exe se cerro solo (codigo $($p.ExitCode))" }
+          Stop-Process -Id $p.Id -Force
+          Write-Host "cryptum.exe abrio la ventana correctamente."
 
       - name: Calcular la huella SHA-256
         working-directory: portable
         shell: pwsh
         run: |
-          $h = (Get-FileHash dist\cryptum.exe -Algorithm SHA256).Hash.ToLower()
-          "$h  cryptum.exe" | Out-File -Encoding ascii dist\cryptum.exe.sha256
-          Write-Host "Huella: $h"
+          foreach ($f in @('cryptum.exe','cryptum-cli.exe')) {
+            $h = (Get-FileHash "dist\$f" -Algorithm SHA256).Hash.ToLower()
+            "$h  $f" | Out-File -Encoding ascii "dist\$f.sha256"
+            Write-Host "$f  ->  $h"
+          }
 
       - name: Publicar el ejecutable
         uses: actions/upload-artifact@v4
@@ -95,6 +127,8 @@ jobs:
           path: |
             portable/dist/cryptum.exe
             portable/dist/cryptum.exe.sha256
+            portable/dist/cryptum-cli.exe
+            portable/dist/cryptum-cli.exe.sha256
           retention-days: 90
 
   # ═══════════════════════════════════════════════════════════════
