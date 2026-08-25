@@ -76,7 +76,7 @@ archivo:
    superior de `http://<servidor>/cryptum/`. Es la vía normal para el personal:
    funciona aunque el servidor esté en una red cerrada, sin salida a internet.
 2. **Desde el Release del repositorio** —
-   [github.com/c3r0d4y/cryptum/releases](https://github.com/c3r0d4y/cryptum/releases).
+   [github.com/c3r0d4y/Cryptum/releases](https://github.com/c3r0d4y/Cryptum/releases).
    No hace falta cuenta de GitHub ni caduca.
 
 Junto a cada ejecutable se publica su huella `.sha256` para verificarlo antes de

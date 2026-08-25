@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-REPO="c3r0d4y/cryptum"
+REPO="c3r0d4y/Cryptum"
 # Si no se indica versión, se usa la que espera el modelo Descargas.php
 ETIQUETA="${1:-}"
 

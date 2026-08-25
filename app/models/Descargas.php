@@ -31,7 +31,7 @@ final class Descargas
     public const RELEASE_TAG = 'v1.4.5';
 
     // Dirección desde la que GitHub entrega los archivos de ese Release.
-    public const RELEASE_URL = 'https://github.com/c3r0d4y/cryptum/releases/download/' . self::RELEASE_TAG . '/';
+    public const RELEASE_URL = 'https://github.com/c3r0d4y/Cryptum/releases/download/' . self::RELEASE_TAG . '/';
 
     // Carpeta física del servidor donde se buscan primero los archivos.
     private const CARPETA = APP_ROOT . '/public/descargas/';

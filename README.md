@@ -186,7 +186,7 @@ publicarlo. Gracias a eso **no hace falta una máquina Windows con Python** para
 obtener el `cryptum.exe` que se entrega al personal desplegado.
 
 Los ejecutables terminados se publican en el
-[Release del repositorio](https://github.com/c3r0d4y/cryptum/releases), cada uno
+[Release del repositorio](https://github.com/c3r0d4y/Cryptum/releases), cada uno
 con su huella `.sha256`:
 
 | Archivo | Sistema | Para qué |
