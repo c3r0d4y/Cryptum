@@ -23,6 +23,19 @@ portable/build/*.spec
 !public/descargas/cryptum-portable.zip
 !public/descargas/cryptum-portable.zip.sha256
 
+# Los ejecutables ya compilados (unos 58 MB entre los tres) NO se versionan:
+# meterlos en Git engordaría el historial para siempre y cada compilación
+# nueva sumaría otro tanto. Viven en el Release de GitHub y se traen a este
+# servidor cuando hacen falta con:
+#     bash portable/build/descargar_binarios.sh
+public/descargas/cryptum.exe
+public/descargas/cryptum-cli.exe
+public/descargas/cryptum
+public/descargas/cryptum.exe.sha256
+public/descargas/cryptum-cli.exe.sha256
+public/descargas/cryptum.sha256
+public/descargas/.*.parcial
+
 # Configuración local del entorno
 .env
 .env.local

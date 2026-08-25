@@ -130,7 +130,7 @@
         </button>
 
         <div class="diag-title">Cryptum Portable — para el despliegue</div>
-        <div class="diag-sub">Cifra aquí antes de salir. Descifra allá sin internet, sin servidor y sin instalar nada.</div>
+        <div class="diag-sub">Cifra aquí antes de salir. Descifra allá sin internet, sin servidor y sin instalar nada. Un solo archivo: no necesita Python.</div>
 
         <!-- ── Diagrama de uso: los tres momentos de la operación ── -->
         <div class="port-flow">
@@ -178,39 +178,38 @@
 
         <div class="diag-divider"><span>Descarga</span></div>
 
-        <!-- El enlace apunta a un archivo físico: Apache lo sirve directo -->
-        <a class="port-download" href="<?= rtrim(BASE_URL, '/') ?>/descargas/cryptum-portable.zip" download>
-            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span>
-                <strong>Descargar Cryptum Portable</strong>
-                <em>Linux y Windows · funciona sin internet</em>
-            </span>
-        </a>
-
-        <div class="port-grid">
-            <div class="port-card">
-                <div class="port-card-title">Windows</div>
-                <div class="port-card-desc">Descomprime y ejecuta <code>cryptum.exe</code>. Sin instalación ni permisos de administrador.</div>
-            </div>
-            <div class="port-card">
-                <div class="port-card-title">Linux</div>
-                <div class="port-card-desc">Descomprime y ejecuta <code>./cryptum</code>. También corre desde la propia USB.</div>
-            </div>
-            <div class="port-card">
-                <div class="port-card-title">Mismo cifrado</div>
-                <div class="port-card-desc">AES-256-GCM y PBKDF2-SHA-512 con 210 000 iteraciones, idéntico a esta página.</div>
-            </div>
-            <div class="port-card">
-                <div class="port-card-title">Sin secretos dentro</div>
-                <div class="port-card-desc">El programa no lleva ninguna llave. Sin tu contraseña no sirve de nada a quien lo tenga.</div>
-            </div>
+        <!--
+             Lista de descargas. Cada renglón sale del modelo Descargas:
+             si el archivo ya está copiado en el servidor, el enlace apunta
+             aquí mismo (sirve sin internet); si todavía no, apunta al
+             Release oficial de GitHub para que el botón nunca quede muerto.
+        -->
+        <div class="port-dl-list">
+<?php foreach (($descargas ?? []) as $d): ?>
+            <a class="port-download<?= $d['destaca'] ? '' : ' alt' ?>"
+               href="<?= htmlspecialchars($d['url'], ENT_QUOTES) ?>"
+               <?= $d['local'] ? 'download' : 'rel="noopener noreferrer"' ?>>
+                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>
+                    <strong><?= htmlspecialchars($d['titulo']) ?></strong>
+                    <em><?= htmlspecialchars($d['detalle']) ?></em>
+                </span>
+                <span class="port-dl-meta">
+                    <span class="port-dl-size"><?= htmlspecialchars($d['peso']) ?></span>
+<?php if (!$d['local']): ?>
+                    <span class="port-dl-src">GitHub</span>
+<?php endif; ?>
+                </span>
+            </a>
+<?php endforeach; ?>
         </div>
 
         <div class="port-hash">
-            Verifica la descarga antes de usarla:
-            <code>sha256sum cryptum-portable.zip</code>
-            — compara el resultado con el archivo
-            <a href="<?= rtrim(BASE_URL, '/') ?>/descargas/cryptum-portable.zip.sha256">.sha256</a> publicado junto al paquete.
+            Verifica la descarga antes de usarla. En Linux
+            <code>sha256sum cryptum</code>, en Windows
+            <code>certutil -hashfile cryptum.exe SHA256</code>
+            — compara el resultado con el archivo <code>.sha256</code> que se publica
+            junto a cada descarga. Si no coincide, no lo ejecutes.
         </div>
 
     </div>

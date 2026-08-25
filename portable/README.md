@@ -69,16 +69,29 @@ el propio Python reparte `python.exe` y `pythonw.exe`. Al soldado que solo va a
 usar la ventana le basta con `cryptum.exe`. En Linux no existe esa limitación y
 un solo archivo sirve para ambas cosas.
 
-**De dónde sale ese ejecutable.** Se compila solo en GitHub, en máquinas Windows
-y Linux de verdad. Para descargarlo: pestaña **Actions** del repositorio →
-ejecución más reciente de *Construir Cryptum Portable* → sección **Artifacts** →
-`cryptum-windows` o `cryptum-linux`. Cada uno trae el ejecutable y su huella
-SHA-256 para verificarlo.
+**Dónde se descarga.** Hay dos lugares, y los dos entregan exactamente el mismo
+archivo:
 
-Esa es la vía recomendada porque **no hace falta tener Python instalado en el
-equipo Windows**: la compilación ocurre en el servidor de GitHub, que además
-ejecuta las 125 pruebas y comprueba que el ejecutable descifra un archivo antes
-de publicarlo.
+1. **Desde la propia aplicación web** — botón *App portátil* en la barra
+   superior de `http://<servidor>/cryptum/`. Es la vía normal para el personal:
+   funciona aunque el servidor esté en una red cerrada, sin salida a internet.
+2. **Desde el Release del repositorio** —
+   [github.com/c3r0d4y/cryptum/releases](https://github.com/c3r0d4y/cryptum/releases).
+   No hace falta cuenta de GitHub ni caduca.
+
+Junto a cada ejecutable se publica su huella `.sha256` para verificarlo antes de
+usarlo.
+
+**De dónde sale ese ejecutable.** Se compila solo en GitHub, en máquinas Windows
+y Linux de verdad, cada vez que cambia algo en `portable/`. Esa es la vía
+recomendada porque **no hace falta tener Python instalado en el equipo
+Windows**: la compilación ocurre en el servidor de GitHub, que además ejecuta
+las 125 pruebas y comprueba que el ejecutable descifra un archivo de verdad
+antes de publicarlo.
+
+> Los artefactos de la pestaña **Actions** siguen existiendo, pero son para
+> desarrollo: caducan a los 90 días y exigen sesión iniciada en GitHub. Para
+> entregar material al personal, usar siempre el Release o la aplicación web.
 
 ### Opción B — Desde el código fuente
 

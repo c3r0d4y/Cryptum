@@ -41,6 +41,7 @@ define('APP_ROOT', dirname(__DIR__));
 require_once APP_ROOT . '/config/config.php';
 require_once APP_ROOT . '/app/core/Controller.php';
 require_once APP_ROOT . '/app/models/Vault.php';
+require_once APP_ROOT . '/app/models/Descargas.php';
 
 /* ── Autocarga de controladores ─────────────────────────────────────────── */
 spl_autoload_register(static function (string $class): void {

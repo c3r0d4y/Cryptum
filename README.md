@@ -1,4 +1,4 @@
-# Cryptum — v1.4.4
+# Cryptum — v1.4.5
 
 **Autor: C3r0d4y**
 
@@ -182,11 +182,34 @@ python3 tests/test_windows.py          # 60 pruebas de compatibilidad Linux ↔ 
 La carpeta `.github/workflows/` define una construcción automática que compila
 la aplicación portátil en máquinas Windows y Linux reales, ejecuta las 125
 pruebas y comprueba que el ejecutable resultante descifra un archivo antes de
-publicarlo. Se descarga desde la pestaña **Actions** → ejecución más reciente de
-*Construir Cryptum Portable* → **Artifacts**.
+publicarlo. Gracias a eso **no hace falta una máquina Windows con Python** para
+obtener el `cryptum.exe` que se entrega al personal desplegado.
 
-Gracias a eso **no hace falta una máquina Windows con Python** para obtener el
-`cryptum.exe` que se entrega al personal desplegado.
+Los ejecutables terminados se publican en el
+[Release del repositorio](https://github.com/c3r0d4y/cryptum/releases), cada uno
+con su huella `.sha256`:
+
+| Archivo | Sistema | Para qué |
+|---|---|---|
+| `cryptum.exe` | Windows | Ventana gráfica — doble clic |
+| `cryptum-cli.exe` | Windows | Línea de comandos |
+| `cryptum` | Linux | Ventana y línea de comandos en un solo archivo |
+
+#### Servirlos desde este servidor
+
+Los ejecutables pesan unos 58 MB entre los tres y **no se versionan en Git**:
+meterlos en el historial lo engordaría para siempre, y cada compilación nueva
+sumaría otro tanto. Para que el botón *App portátil* los entregue desde el
+propio servidor —imprescindible en redes sin salida a internet— se traen con:
+
+```bash
+bash portable/build/descargar_binarios.sh    # baja el Release y verifica cada huella
+```
+
+Mientras no se ejecute ese script, el botón sigue funcionando: los enlaces
+apuntan al Release de GitHub y se marcan con la etiqueta *GitHub* para que quede
+claro que esa descarga sí sale a internet. La lógica vive en
+`app/models/Descargas.php`, que decide origen y tamaño de cada archivo.
 
 ### Regenerar el paquete de descarga
 

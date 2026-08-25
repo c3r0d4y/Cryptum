@@ -24,11 +24,15 @@ echo "  Empaquetando Cryptum Portable..."
 # El ZIP se arma con la carpeta "cryptum_portable" dentro, para que al
 # descomprimirlo el usuario obtenga una carpeta con nombre claro y no un
 # monton de archivos sueltos.
+#
+# Queda fuera descargar_binarios.sh: ese script es para quien administra el
+# servidor, no para el personal que usa la aplicacion.
 rm -f "$ZIP"
 TMP="$(mktemp -d)"
 cp -r "$RAIZ" "$TMP/cryptum_portable"
 (cd "$TMP" && zip -r -q "$ZIP" cryptum_portable \
-    -x "*/__pycache__/*" "*/.git/*" "*/build/tmp/*" "*/dist/*" "*.pyc")
+    -x "*/__pycache__/*" "*/.git/*" "*/build/tmp/*" "*/dist/*" "*.pyc" \
+       "*/build/descargar_binarios.sh")
 rm -rf "$TMP"
 
 # Huella publicada junto al ZIP: quien descarga puede comprobar que el
