@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────
+#  Cryptum — Carpeta de descargas
+#  Autor: C3r0d4y
+#
+#  Aquí viven los programas que el personal descarga. Esta configuración
+#  se asegura de que el navegador los GUARDE en el disco en vez de
+#  intentar mostrarlos en pantalla, y de que nada de lo que hay aquí se
+#  pueda ejecutar en el servidor.
+# ─────────────────────────────────────────────────────────────────────
+
+# Nada de listar el contenido de la carpeta a quien entre por curiosidad.
+Options -Indexes -ExecCGI
+
+# El programa de Linux se llama solo "cryptum", sin extensión, así que
+# Apache no adivina qué es. Sin esto el navegador intentaría enseñar 28 MB
+# de código binario como si fuera texto.
+<FilesMatch "^cryptum$">
+    ForceType application/octet-stream
+    # El encabezado extra solo se pone si el modulo esta disponible: sin esta
+    # comprobacion, un Apache sin mod_headers responderia error 500 a todo.
+    <IfModule mod_headers.c>
+        Header set Content-Disposition "attachment; filename=cryptum"
+    </IfModule>
+</FilesMatch>
+
+# Los ejecutables de Windows también se entregan como descarga.
+<FilesMatch "\.exe$">
+    ForceType application/octet-stream
+</FilesMatch>
+
+# Aunque alguien lograra subir un script aquí, no se ejecutaría: se
+# entregaría como texto plano. Es una red de seguridad, no la única.
+<FilesMatch "\.(php|phtml|phar|cgi|pl|py|sh)$">
+    SetHandler none
+    ForceType text/plain
+</FilesMatch>

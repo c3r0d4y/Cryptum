@@ -17,7 +17,12 @@ if (!defined('APP_NAME')) {
     // Se usa !== false para distinguir entre "no definida" (false) y "definida vacía" ("").
     $envBase = getenv('APP_BASE_URL');
     define('BASE_URL', rtrim($envBase !== false ? (string)$envBase : '/cryptum', '/'));
-    define('APP_ROOT',    dirname(__DIR__));
+    // El front controller ya la define antes de cargar este archivo; solo se
+    // define aqui cuando la configuracion se carga por su cuenta (por ejemplo
+    // desde una prueba o un script de mantenimiento).
+    if (!defined('APP_ROOT')) {
+        define('APP_ROOT', dirname(__DIR__));
+    }
     define('VAULT_PATH',  APP_ROOT . '/storage/vault/');
     define('MAX_FILE_MB', 100);
     define('EXPIRY_SEC',  300);
