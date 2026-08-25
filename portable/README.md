@@ -142,21 +142,32 @@ El propio script te dice el nombre exacto del paquete para tu versión de Python
 
 #### Si en Windows aparece «ERROR: no se encontro Python»
 
-El script busca el intérprete con tres nombres distintos (`py -3`, `python` y
-`python3`) y ninguno respondió. Para saber qué pasa, abre una consola y escribe:
+Encontrar Python en Windows es más difícil de lo que parece: cada instalación lo
+deja en un sitio distinto. El script lo busca en tres pasadas, en este orden:
 
-```
-py -3 --version
-python --version
-where python
-```
+1. **`py -3`** — el lanzador oficial. Funciona aunque Python no se haya agregado
+   al PATH, por eso va primero.
+2. **Lo que el PATH conozca** como `python` o `python3`, descartando el atajo de
+   la Microsoft Store.
+3. **Las carpetas habituales de instalación**, por si Python está instalado pero
+   nadie lo agregó al PATH ni instaló el lanzador:
+   `%LOCALAPPDATA%\Programs\Python\Python3*`, `C:\Program Files\Python3*`,
+   `C:\Program Files (x86)\Python3*` y `C:\Python3*`.
 
-| Lo que ves | Qué significa | Qué hacer |
+**El atajo de la tienda.** Windows 10 y 11 traen un archivo llamado `python.exe`
+que **no es Python**: al ejecutarlo abre la Microsoft Store. Vive en la carpeta
+`WindowsApps`, así que el script lo reconoce por la ruta y ni siquiera intenta
+ejecutarlo — de otro modo le abriría la tienda al usuario en plena compilación.
+
+Si aun así no encuentra nada, el script **imprime qué probó y qué respondió cada
+cosa**. Esa lista dice exactamente cuál es el problema:
+
+| Lo que dice la lista | Qué significa | Qué hacer |
 |---|---|---|
-| `py -3 --version` responde una versión | Python está instalado pero fuera del PATH | Ya está resuelto: el script usa `py` automáticamente |
-| Se abre la tienda de Microsoft | Eso es un atajo de Windows, no Python | Instalar Python real desde [python.org](https://www.python.org/downloads/) |
-| No responde nada | Python no está instalado | Instalarlo y marcar **Add Python to PATH** en la primera pantalla del instalador |
-| Responde una versión anterior a 3.8 | Es demasiado antigua | Actualizar desde la misma página |
+| *(no se encontró ningún candidato)* | Python no está instalado | Instalarlo desde [python.org](https://www.python.org/downloads/) y marcar **Add python.exe to PATH** |
+| `atajo de la tienda, no es Python` | Solo hay el acceso directo de Microsoft Store | Instalar Python real desde python.org |
+| `demasiado antiguo` | La versión es anterior a 3.8 | Actualizar desde la misma página |
+| `no responde` | La instalación está rota o incompleta | Reinstalar sin quitar componentes del instalador |
 
 Si prefieres no instalar nada, usa la **Opción A**: el ejecutable ya compilado.
 
